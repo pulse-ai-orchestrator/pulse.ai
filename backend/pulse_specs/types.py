@@ -25,6 +25,7 @@ class ExecuteSpecsOptions:
     api_key: str | None = None
     agent_bin: str | None = None
     dry_run: bool = False
+    skip_pr: bool = False
 
 
 @dataclass
@@ -33,6 +34,7 @@ class SpecExecutionResult:
     branch: str
     parent_branch: str
     status_path: Path
+    pr_url: str | None = None
     agent_id: str | None = None
 
 

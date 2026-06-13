@@ -53,20 +53,18 @@ Implement one roadmap spec phase from exploration through PR creation.
 6. Commit changes.
    - Stage only files relevant to this phase.
    - Create one commit with a Conventional Commits message aligned to the PR title in the product spec.
-   - Do not push yet.
+   - Do not push and do not open a PR — the `pulse_specs` runner handles push and PR creation automatically.
 
-7. Open pull request.
-   - Follow `@backend/.cursor/skills/create-pr/SKILL.md` exactly.
-   - Push the current branch to origin before creating the PR.
-   - PR base branch is the parent branch provided by the caller (branch da fase anterior).
-   - PR title in English (Conventional Commits); PR body in pt-BR per the template.
-   - Return the PR URL in the final response.
+7. Finalize.
+   - Confirm `status: completed` in the status file.
+   - Report what was implemented and pytest results.
+   - Do not attempt GitHub MCP, `gh` CLI or manual PR creation.
 
 ## Error Handling
 
 - If validation fails, do not mark the status file as completed.
 - If git operations fail, report the error and stop.
-- If PR creation fails via MCP, provide a ready-to-paste title and body for manual creation.
+- If git commit fails, report the error and keep status incomplete.
 - Never force-push.
 
 ## Completion Gate
@@ -77,4 +75,3 @@ The phase is complete only when all are true:
 - `pytest` passes for affected tests
 - Status file contains `status: completed`
 - Local commit exists with phase changes
-- PR created (or manual fallback provided)

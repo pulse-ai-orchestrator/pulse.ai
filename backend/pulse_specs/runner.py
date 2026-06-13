@@ -23,6 +23,7 @@ from pulse_specs.git_workflow import (
     push_branch,
     resolve_repo_root,
 )
+from pulse_specs.pr_workflow import PrWorkflowError, create_phase_pull_request
 from pulse_specs.prompt import build_execute_spec_prompt
 from pulse_specs.skills import resolve_applicable_skills
 from pulse_specs.tracker import ensure_spec_workflow_dir, is_spec_completed, spec_status_path
@@ -121,15 +122,29 @@ def run_execute_specs_loop(options: ExecuteSpecsOptions) -> ExecuteSpecsResult:
             )
 
         commit_message = f"feat(backend/{phase.name}): implement phase {phase.number}"
+        pr_url: str | None = None
         try:
             committed = ensure_committed(repo_root, commit_message)
             if committed:
                 renderer.success(f"Commit de fallback criado para {phase.slug}")
             push_branch(repo_root, phase_branch)
             renderer.success(f"Branch {phase_branch} enviada para origin")
-        except GitWorkflowError as error:
-            renderer.status(f"Aviso git para {phase.slug}: {error}")
+            if not options.skip_pr:
+                renderer.status(f"Criando PR para {phase.slug} (base: {parent_branch})...")
+                pr = create_phase_pull_request(
+                    repo_root=repo_root,
+                    phase=phase,
+                    head_branch=phase_branch,
+                    base_branch=parent_branch,
+                    status_path=status_path,
+                )
+                pr_url = pr.url
+                verb = "criado" if pr.created else "já existia"
+                renderer.success(f"PR {verb}: {pr_url}")
+        except (GitWorkflowError, PrWorkflowError) as error:
+            raise RuntimeError(f"falha pós-execução para {phase.slug}: {error}") from error
 
+        result.pr_url = pr_url
         executed.append(result)
         renderer.success(f"Fase {phase.slug} concluída.")
         parent_branch = phase_branch

@@ -45,7 +45,7 @@ def build_execute_spec_prompt(
         f"Base do PR: `{pr_base_branch}`\n"
         f"Status file: `{_relative(status_path)}`\n"
         f"Esta execução roda em contexto isolado (novo chat) — implemente apenas esta fase.\n"
-        f"Ao concluir: pytest em `backend/`, atualize o status file, commit local e abra PR "
-        f"seguindo `@backend/.cursor/skills/create-pr/SKILL.md` com base `{pr_base_branch}`."
+        f"Ao concluir: pytest em `backend/`, atualize o status file e faça commit local.\n"
+        f"NÃO crie PR nem faça push — o runner `pulse_specs` cuida disso automaticamente após você concluir."
     )
     return f"{resolved}\n\n{body}"

@@ -54,6 +54,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Lista fases e branches sem executar agentes nem alterar git",
     )
+    parser.add_argument(
+        "--skip-pr",
+        action="store_true",
+        help="Não cria PR automaticamente após push (útil para debug)",
+    )
     parsed = parser.parse_args(argv)
 
     try:
@@ -70,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
                 executor=parsed.executor,
                 agent_bin=parsed.agent_bin,
                 dry_run=parsed.dry_run,
+                skip_pr=parsed.skip_pr,
             )
         )
     except Exception as error:
