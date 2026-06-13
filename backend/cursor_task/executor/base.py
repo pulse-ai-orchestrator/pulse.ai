@@ -36,7 +36,10 @@ class ExecutionOutcome:
     ready_for_artifact: bool = False
 
 
-class CursorExecutor(ABC):
+class AgentProvider(ABC):
     @abstractmethod
     def run(self, context: ExecutionContext) -> ExecutionOutcome:
         raise NotImplementedError
+
+
+CursorExecutor = AgentProvider

@@ -156,7 +156,7 @@ Combina a skill referenciada (`@references /create-prd/SKILL.md`) com instruçõ
 
 ### Executores (`executor/`)
 
-Três estratégias intercambiáveis, selecionadas por `factory.create_executor`:
+Contrato `AgentProvider` com três implementações Cursor intercambiáveis, selecionadas por `factory.create_executor`:
 
 | Executor | Quando usar | Dependência |
 |----------|-------------|-------------|

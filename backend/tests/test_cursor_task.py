@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from cursor_task.artifact_writer import ArtifactWriter
-from cursor_task.executor.base import ExecutionContext
+from cursor_task.executor.base import AgentProvider, ExecutionContext
 from cursor_task.executor.completion import resolve_completion
 from cursor_task.executor.run_continuation import resolve_finished_iteration
 from cursor_task.prompt_builder import (
@@ -555,6 +555,20 @@ class StreamRendererTests(unittest.TestCase):
         self.assertIn("[STATUS]", output)
         self.assertIn("[THINKING]", output)
         self.assertIn("[OUTPUT]", output)
+
+
+class ExecutorFactoryTests(unittest.TestCase):
+    def test_create_executor_returns_agent_provider(self) -> None:
+        from unittest.mock import patch
+
+        from cursor_task.executor.factory import create_executor
+        from cursor_task.executor.sdk_executor import SdkExecutor
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("cursor_task.executor.factory.sdk_available", return_value=True):
+                executor = create_executor(project_path=Path(tmp), kind="sdk")
+            self.assertIsInstance(executor, AgentProvider)
+            self.assertIsInstance(executor, SdkExecutor)
 
 
 if __name__ == "__main__":

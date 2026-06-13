@@ -6,12 +6,12 @@ import subprocess
 from pathlib import Path
 
 from cursor_task.executor.run_continuation import is_unattended_execution, resolve_finished_iteration
-from cursor_task.executor.base import CursorExecutor, ExecutionContext, ExecutionOutcome
+from cursor_task.executor.base import AgentProvider, ExecutionContext, ExecutionOutcome
 from cursor_task.question_handler import QuestionHandler
 from cursor_task.types import ClarifyingQuestion
 
 
-class StreamCliExecutor(CursorExecutor):
+class StreamCliExecutor(AgentProvider):
     def __init__(
         self,
         *,

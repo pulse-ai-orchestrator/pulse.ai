@@ -4,11 +4,11 @@ import os
 from pathlib import Path
 
 from cursor_task.executor.run_continuation import is_unattended_execution, resolve_finished_iteration
-from cursor_task.executor.base import CursorExecutor, ExecutionContext, ExecutionOutcome
+from cursor_task.executor.base import AgentProvider, ExecutionContext, ExecutionOutcome
 from cursor_task.types import ClarifyingQuestion
 
 
-class SdkExecutor(CursorExecutor):
+class SdkExecutor(AgentProvider):
     def __init__(
         self,
         *,

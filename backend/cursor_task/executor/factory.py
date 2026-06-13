@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 
 from cursor_task.executor.acp_executor import AcpCliExecutor
-from cursor_task.executor.base import CursorExecutor
+from cursor_task.executor.base import AgentProvider
 from cursor_task.executor.sdk_executor import SdkExecutor
 from cursor_task.executor.stream_cli_executor import StreamCliExecutor
 from cursor_task.types import ExecutorKind
@@ -42,7 +42,7 @@ def create_executor(
     agent_bin: str | None = None,
     model: str = "composer-2.5",
     api_key: str | None = None,
-) -> CursorExecutor:
+) -> AgentProvider:
     resolved_agent = find_agent_binary(agent_bin)
 
     if kind == "sdk":

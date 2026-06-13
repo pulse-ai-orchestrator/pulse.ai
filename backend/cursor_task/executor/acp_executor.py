@@ -8,11 +8,11 @@ from pathlib import Path
 from queue import Empty, Queue
 from typing import Any
 
-from cursor_task.executor.base import CursorExecutor, ExecutionContext, ExecutionOutcome
+from cursor_task.executor.base import AgentProvider, ExecutionContext, ExecutionOutcome
 from cursor_task.types import ClarifyingQuestion
 
 
-class AcpCliExecutor(CursorExecutor):
+class AcpCliExecutor(AgentProvider):
     def __init__(
         self,
         *,
