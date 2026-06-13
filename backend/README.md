@@ -195,6 +195,20 @@ Cada tarefa usa um slug derivado do nome da feature:
 
 ## Uso
 
+### Breaking change (Fase 2)
+
+`project_path` é **obrigatório** em todos os comandos e na API. Comandos que omitiam o caminho do repositório alvo deixam de funcionar — informe sempre o diretório do projeto a ser explorado pelo agente.
+
+```bash
+# Antes (não funciona mais)
+./cursor-task.sh prd "Minha feature"
+
+# Depois (obrigatório)
+./cursor-task.sh prd "Minha feature" /caminho/do/projeto-alvo
+```
+
+`artifacts_path` mantém o default do pacote (este repositório) até a Fase 3.
+
 ### Instalação
 
 ```bash
@@ -206,19 +220,19 @@ export CURSOR_API_KEY="sua-chave"
 ### Gerar PRD
 
 ```bash
-./cursor-task.sh prd "Criar feature de logs e monitoramento de saúde"
+./cursor-task.sh prd "Criar feature de logs e monitoramento de saúde" /caminho/do/projeto-alvo
 ```
 
 ### Gerar TechSpec a partir de PRD
 
 ```bash
-./cursor-task.sh techspec .workflow/tasks/logs-monitoramento-saude-aplicacao/_prd.md
+./cursor-task.sh techspec .workflow/tasks/logs-monitoramento-saude-aplicacao/_prd.md /caminho/do/projeto-alvo
 ```
 
 ### Gerar Tasks a partir de TechSpec
 
 ```bash
-./cursor-task.sh tasks .workflow/tasks/logs-monitoramento-saude-aplicacao/_techspec.md
+./cursor-task.sh tasks .workflow/tasks/logs-monitoramento-saude-aplicacao/_techspec.md /caminho/do/projeto-alvo
 ```
 
 ### Opções avançadas
@@ -235,13 +249,15 @@ export CURSOR_API_KEY="sua-chave"
 ```python
 from cursor_task import run_prd_task, run_tasks_task, run_techspec_task
 
-result = run_prd_task("Criar feature de autenticação OAuth")
+PROJECT = "/caminho/do/projeto-alvo"
+
+result = run_prd_task("Criar feature de autenticação OAuth", project_path=PROJECT)
 print(result.output_file)
 
-result = run_techspec_task(".workflow/tasks/oauth/_prd.md")
+result = run_techspec_task(".workflow/tasks/oauth/_prd.md", project_path=PROJECT)
 print(result.artifact_content)
 
-result = run_tasks_task(".workflow/tasks/oauth/_techspec.md")
+result = run_tasks_task(".workflow/tasks/oauth/_techspec.md", project_path=PROJECT)
 print(result.output_file)
 ```
 

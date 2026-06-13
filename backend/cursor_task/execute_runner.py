@@ -7,6 +7,7 @@ from cursor_task.executor.factory import create_executor
 from cursor_task.prompt_builder import build_execute_task_prompt, resolve_master_tasks_path_for_execute
 from cursor_task.question_handler import QuestionHandler
 from cursor_task.stream_renderer import StreamRenderer
+from cursor_task.runner import _require_project_path
 from cursor_task.task_tracker import (
     RunnableTask,
     all_tasks_completed,
@@ -17,14 +18,19 @@ from cursor_task.types import ExecuteTasksOptions, ExecuteTasksResult, ExecutorK
 
 
 def run_execute_tasks_loop(options: ExecuteTasksOptions) -> ExecuteTasksResult:
-    project = Path(options.project_path).expanduser().resolve()
+    project = Path(_require_project_path(options.project_path)).expanduser().resolve()
     artifacts = Path(options.artifacts_path).expanduser().resolve()
     master_path = resolve_master_tasks_path_for_execute(artifacts, options.master_tasks_file)
 
     if not project.exists():
-        raise FileNotFoundError(f"projectPath não encontrado: {project}")
+        raise FileNotFoundError(
+            f"project_path não encontrado: {project}; "
+            "verifique se o caminho existe e está correto"
+        )
     if not project.is_dir():
-        raise NotADirectoryError(f"projectPath deve ser um diretório: {project}")
+        raise NotADirectoryError(
+            f"project_path deve ser um diretório: {project}"
+        )
     if not artifacts.exists():
         raise FileNotFoundError(f"artifactsPath não encontrado: {artifacts}")
 

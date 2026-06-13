@@ -5,7 +5,7 @@ import sys
 
 from cursor_task.execute_runner import run_execute_tasks_loop
 from cursor_task.runner import run_cursor_task
-from cursor_task.types import DEFAULT_PROJECT_PATH, ExecuteTasksOptions
+from cursor_task.types import ExecuteTasksOptions
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -17,9 +17,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("prompt", help="Instrução principal do usuário")
     parser.add_argument(
         "project_path",
-        nargs="?",
-        default=DEFAULT_PROJECT_PATH,
-        help=f"Caminho absoluto do projeto (padrão: {DEFAULT_PROJECT_PATH})",
+        help="Caminho absoluto do repositório alvo (obrigatório)",
     )
     parser.add_argument("--output-file", dest="output_file", default=None, help="Arquivo .md de saída")
     parser.add_argument("--reference", default="create-prd")
@@ -69,9 +67,7 @@ def _run_subcommand(argv: list[str]) -> int:
         parser.add_argument("prompt", help="Instrução principal do usuário")
     parser.add_argument(
         "project_path",
-        nargs="?",
-        default=DEFAULT_PROJECT_PATH,
-        help=f"Caminho absoluto do projeto (padrão: {DEFAULT_PROJECT_PATH})",
+        help="Caminho absoluto do repositório alvo (obrigatório)",
     )
     parser.add_argument("--output-file", dest="output_file", default=None, help="Arquivo .md de saída")
     parser.add_argument("--reference", default=default_reference)
@@ -140,9 +136,7 @@ def _run_execute_subcommand(argv: list[str]) -> int:
     )
     parser.add_argument(
         "project_path",
-        nargs="?",
-        default=DEFAULT_PROJECT_PATH,
-        help=f"Caminho absoluto do projeto alvo (padrão: {DEFAULT_PROJECT_PATH})",
+        help="Caminho absoluto do repositório alvo (obrigatório)",
     )
     parser.add_argument("--reference", default="execute-task")
     parser.add_argument("--model", default="composer-2.5")

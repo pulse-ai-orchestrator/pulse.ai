@@ -17,11 +17,19 @@ from cursor_task.question_handler import QuestionHandler
 from cursor_task.stream_renderer import StreamRenderer
 from cursor_task.types import (
     DEFAULT_ARTIFACTS_PATH,
-    DEFAULT_PROJECT_PATH,
     RunCursorTaskOptions,
     RunCursorTaskResult,
     TaskKind,
 )
+
+
+def _require_project_path(project_path: str | None) -> str:
+    if project_path is None or not str(project_path).strip():
+        raise ValueError(
+            "project_path é obrigatório; informe o caminho absoluto do repositório alvo "
+            '(ex.: ./cursor-task.sh prd "minha feature" /caminho/do/projeto)'
+        )
+    return str(project_path).strip()
 
 
 def run_cursor_task(
@@ -36,7 +44,7 @@ def run_cursor_task(
 
 def run_prd_task(
     prompt: str,
-    project_path: str | None = None,
+    project_path: str,
     **kwargs,
 ) -> RunCursorTaskResult:
     return run_cursor_task(
@@ -50,13 +58,13 @@ def run_prd_task(
 
 def run_techspec_task(
     prd_file: str,
-    project_path: str | None = None,
+    project_path: str,
     **kwargs,
 ) -> RunCursorTaskResult:
     return run_cursor_task(
         RunCursorTaskOptions(
             prompt="",
-            project_path=project_path or DEFAULT_PROJECT_PATH,
+            project_path=_require_project_path(project_path),
             artifacts_path=kwargs.pop("artifacts_path", DEFAULT_ARTIFACTS_PATH),
             task_kind="techspec",
             input_file=prd_file,
@@ -72,13 +80,13 @@ def run_techspec_task(
 
 def run_tasks_task(
     techspec_file: str,
-    project_path: str | None = None,
+    project_path: str,
     **kwargs,
 ) -> RunCursorTaskResult:
     return run_cursor_task(
         RunCursorTaskOptions(
             prompt="",
-            project_path=project_path or DEFAULT_PROJECT_PATH,
+            project_path=_require_project_path(project_path),
             artifacts_path=kwargs.pop("artifacts_path", DEFAULT_ARTIFACTS_PATH),
             task_kind="tasks",
             input_file=techspec_file,
@@ -93,13 +101,18 @@ def run_tasks_task(
 
 
 def _run_task(options: RunCursorTaskOptions) -> RunCursorTaskResult:
-    project = Path(options.project_path).expanduser().resolve()
+    project = Path(_require_project_path(options.project_path)).expanduser().resolve()
     artifacts = Path(options.artifacts_path).expanduser().resolve()
 
     if not project.exists():
-        raise FileNotFoundError(f"projectPath não encontrado: {project}")
+        raise FileNotFoundError(
+            f"project_path não encontrado: {project}; "
+            "verifique se o caminho existe e está correto"
+        )
     if not project.is_dir():
-        raise NotADirectoryError(f"projectPath deve ser um diretório: {project}")
+        raise NotADirectoryError(
+            f"project_path deve ser um diretório: {project}"
+        )
     if not artifacts.exists():
         raise FileNotFoundError(f"artifactsPath não encontrado: {artifacts}")
     if not artifacts.is_dir():
@@ -220,7 +233,7 @@ def _normalize_options(
 
     return RunCursorTaskOptions(
         prompt=prompt,
-        project_path=project_path or DEFAULT_PROJECT_PATH,
+        project_path=_require_project_path(project_path),
         artifacts_path=extra.get("artifacts_path", DEFAULT_ARTIFACTS_PATH),
         output_file=output_file,
         reference=extra.get("reference", default_reference),

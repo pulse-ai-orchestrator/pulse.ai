@@ -10,14 +10,13 @@ TaskKind = Literal["prd", "techspec", "tasks"]
 ArtifactKind = Literal["prd", "techspec", "tasks"]
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PROJECT_PATH = "/Users/jonathancosta/Projects/github/meu-valor-system"
 DEFAULT_ARTIFACTS_PATH = str(_PACKAGE_ROOT)
 
 
 @dataclass(frozen=True)
 class RunCursorTaskOptions:
     prompt: str
-    project_path: str = DEFAULT_PROJECT_PATH
+    project_path: str
     artifacts_path: str = DEFAULT_ARTIFACTS_PATH
     output_file: str | None = None
     reference: str = "@references /create-prd/SKILL.md"
@@ -42,7 +41,7 @@ class RunCursorTaskResult:
 @dataclass(frozen=True)
 class ExecuteTasksOptions:
     master_tasks_file: str
-    project_path: str = DEFAULT_PROJECT_PATH
+    project_path: str
     artifacts_path: str = DEFAULT_ARTIFACTS_PATH
     reference: str = "execute-task"
     auto_commit: bool = False

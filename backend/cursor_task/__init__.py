@@ -2,7 +2,6 @@ from cursor_task.execute_runner import run_execute_tasks_loop
 from cursor_task.runner import run_cursor_task, run_prd_task, run_tasks_task, run_techspec_task
 from cursor_task.types import (
     DEFAULT_ARTIFACTS_PATH,
-    DEFAULT_PROJECT_PATH,
     ExecuteTasksOptions,
     ExecuteTasksResult,
     RunCursorTaskOptions,
@@ -18,7 +17,6 @@ __all__ = [
     "run_tasks_task",
     "run_execute_tasks_loop",
     "runCursorTask",
-    "DEFAULT_PROJECT_PATH",
     "DEFAULT_ARTIFACTS_PATH",
     "RunCursorTaskOptions",
     "RunCursorTaskResult",

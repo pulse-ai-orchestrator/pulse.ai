@@ -25,10 +25,11 @@ from cursor_task.task_tracker import (
 )
 from cursor_task.question_handler import QuestionHandler
 from cursor_task.stream_renderer import StreamRenderer
+from cursor_task.runner import _normalize_options, _require_project_path, _run_task
 from cursor_task.types import (
     DEFAULT_ARTIFACTS_PATH,
-    DEFAULT_PROJECT_PATH,
     ClarifyingQuestion,
+    RunCursorTaskOptions,
 )
 
 
@@ -536,10 +537,57 @@ class ArtifactWriterTests(unittest.TestCase):
             )
             self.assertFalse(writer.has_artifact_on_disk())
 
-    def test_default_paths(self) -> None:
+    def test_default_artifacts_path(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        self.assertEqual(DEFAULT_PROJECT_PATH, "/Users/jonathancosta/Projects/github/meu-valor-system")
         self.assertEqual(Path(DEFAULT_ARTIFACTS_PATH), repo_root)
+
+
+class ProjectPathValidationTests(unittest.TestCase):
+    def test_require_project_path_raises_when_omitted(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _require_project_path(None)
+        self.assertIn("project_path é obrigatório", str(ctx.exception))
+
+    def test_require_project_path_raises_when_empty(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _require_project_path("   ")
+        self.assertIn("project_path é obrigatório", str(ctx.exception))
+
+    def test_normalize_options_raises_when_project_path_omitted(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            _normalize_options("Criar PRD", None, None, {})
+        self.assertIn("project_path é obrigatório", str(ctx.exception))
+
+    def test_run_task_raises_when_path_not_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifacts = Path(tmp)
+            options = RunCursorTaskOptions(
+                prompt="Criar PRD",
+                project_path=str(artifacts / "inexistente"),
+                artifacts_path=str(artifacts),
+            )
+            with self.assertRaises(FileNotFoundError) as ctx:
+                _run_task(options)
+            self.assertIn("project_path não encontrado", str(ctx.exception))
+
+    def test_run_task_raises_when_path_is_not_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifacts = Path(tmp)
+            file_path = artifacts / "arquivo.txt"
+            file_path.write_text("x", encoding="utf-8")
+            options = RunCursorTaskOptions(
+                prompt="Criar PRD",
+                project_path=str(file_path),
+                artifacts_path=str(artifacts),
+            )
+            with self.assertRaises(NotADirectoryError) as ctx:
+                _run_task(options)
+            self.assertIn("project_path deve ser um diretório", str(ctx.exception))
+
+    def test_normalize_options_accepts_valid_project_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            options = _normalize_options("Criar PRD", tmp, None, {})
+            self.assertEqual(options.project_path, tmp)
 
 
 class StreamRendererTests(unittest.TestCase):
