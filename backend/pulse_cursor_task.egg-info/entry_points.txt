@@ -1,0 +1,3 @@
+[console_scripts]
+cursor-task = cursor_task.cli:main
+pulse-execute-specs = pulse_specs.cli:main
