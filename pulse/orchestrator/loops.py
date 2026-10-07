@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pulse.domain.run import RunRecord
+from pulse.domain.run import LoopRange, RunRecord
 from pulse.store.workflow_defs import WorkflowDef
 
 
@@ -51,18 +51,17 @@ def repeat_loop(
     Index is `None` when the ceiling was reached. Only the run in memory changes;
     the caller persists it.
     """
-    ceiling = definition.steps[loop.end].repeat_max
-    opener_id = definition.steps[loop.start].step_id
-    number = run.loop_round(opener_id)
-    if not run.can_repeat(opener_id, ceiling=ceiling):
-        return None, f"{label}: teto de {ceiling} rodadas atingido — o que sobrou vai no relatório"
-    last = number + 1 >= ceiling
-    run.reopen_loop(_step_ids(definition, loop, last=last))
-    if not last:
-        return loop.start, f"{label} pediu a {number + 1}ª rodada"
-    opener = run.step(opener_id)
+    loop_range = _range(definition, loop)
+    decision = run.repeat_loop(loop_range)
+    if not decision.granted:
+        return None, (
+            f"{label}: teto de {loop_range.ceiling} rodadas atingido — o que sobrou vai no relatório"
+        )
+    if not decision.last:
+        return loop.start, f"{label} pediu a {decision.round}ª rodada"
+    opener = run.step(loop_range.opener_id)
     who = opener.label if opener else "o início do laço"
-    return loop.start, f"{label} pediu a {number + 1}ª rodada — a última: só {who} roda"
+    return loop.start, f"{label} pediu a {decision.round}ª rodada — a última: só {who} roda"
 
 
 def close_loop(run: RunRecord, definition: WorkflowDef, loop: Loop) -> int:
@@ -70,12 +69,13 @@ def close_loop(run: RunRecord, definition: WorkflowDef, loop: Loop) -> int:
 
     Only the run in memory changes; the caller persists it.
     """
-    run.close_loop(_step_ids(definition, loop))
+    run.close_loop(_range(definition, loop))
     return loop.end + 1
 
 
-def _step_ids(definition: WorkflowDef, loop: Loop, *, last: bool = False) -> list[str]:
-    """The range's step ids, opener first. On the `last` round only the opener
-    reopens, so the closer never gets the final word on its own fix."""
-    end = loop.start + 1 if last else loop.end + 1
-    return [step.step_id for step in definition.steps[loop.start : end]]
+def _range(definition: WorkflowDef, loop: Loop) -> LoopRange:
+    steps = definition.steps[loop.start : loop.end + 1]
+    return LoopRange(
+        step_ids=tuple(step.step_id for step in steps),
+        ceiling=definition.steps[loop.end].repeat_max,
+    )

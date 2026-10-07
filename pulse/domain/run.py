@@ -85,6 +85,31 @@ class InvalidTransition(RuntimeError):
     """A status change the run or step does not allow from its current state."""
 
 
+@dataclass(frozen=True)
+class LoopRange:
+    """Steps that may run again as a group, opener first, for at most `ceiling` rounds."""
+
+    step_ids: tuple[str, ...]
+    ceiling: int
+
+    def __post_init__(self) -> None:
+        if not self.step_ids:
+            raise ValueError("a loop range needs an opener")
+
+    @property
+    def opener_id(self) -> str:
+        return self.step_ids[0]
+
+
+@dataclass(frozen=True)
+class RoundDecision:
+    """Answer to a request for another round: `round` is the one now on."""
+
+    round: int
+    granted: bool
+    last: bool
+
+
 Clock = Callable[[], str]
 
 
@@ -213,6 +238,11 @@ class StepRecord:
         self.started_at = ""
         self.ended_at = ""
         self.acp_session_id = ""
+
+    def open_next_round(self) -> None:
+        """Reopen as the loop's opener: only the opener counts the rounds."""
+        self.reopen_round()
+        self.rounds += 1
 
     def close_with_loop(self, *, ran_before: bool) -> None:
         """Settle a step the loop no longer needs, without running it.
@@ -396,35 +426,39 @@ class RunRecord:
             item.fail()
         return running
 
-    def loop_round(self, opener_id: str) -> int:
-        """Round the loop opened by `opener_id` is on; persisted, so it survives a resume."""
-        opener = self.step(opener_id)
-        return opener.rounds if opener is not None else 1
+    def repeat_loop(self, loop: LoopRange) -> RoundDecision:
+        """Grant another round below the ceiling and return the loop's steps to `pending`.
 
-    def can_repeat(self, opener_id: str, *, ceiling: int) -> bool:
-        return self.loop_round(opener_id) < ceiling
-
-    def reopen_loop(self, step_ids: Sequence[str]) -> None:
-        """Return the loop's steps to `pending` for another round.
-
-        `step_ids[0]` opens the loop and is the only one that counts the round.
-        Rounds reuse the same rows so the panel keeps one line per step.
+        On the last round only the opener reopens, so the closer never gets the
+        final word on its own fix. Rounds reuse the same rows so the panel keeps
+        one line per step; the count is persisted, so it survives a resume.
         """
-        for step in self._known(step_ids):
-            step.reopen_round()
-            if step.step_id == step_ids[0]:
-                step.rounds += 1
+        current = self._loop_round(loop)
+        if current >= loop.ceiling:
+            return RoundDecision(round=current, granted=False, last=True)
+        upcoming = current + 1
+        last = upcoming >= loop.ceiling
+        for step in self._known(loop.step_ids[:1] if last else loop.step_ids):
+            if step.step_id == loop.opener_id:
+                step.open_next_round()
+            else:
+                step.reopen_round()
+        return RoundDecision(round=upcoming, granted=True, last=last)
 
-    def close_loop(self, step_ids: Sequence[str]) -> None:
+    def close_loop(self, loop: LoopRange) -> None:
         """Settle the loop's remaining steps without running them.
 
-        `step_ids[0]` opens the loop. After an earlier round the rest ran before
-        and is `done`; on the first round it never ran and is `skipped`.
+        After an earlier round the rest ran before and is `done`; on the first
+        round it never ran and is `skipped`.
         """
-        ran_before = self.loop_round(step_ids[0]) > 1
-        for step in self._known(step_ids[1:]):
+        ran_before = self._loop_round(loop) > 1
+        for step in self._known(loop.step_ids[1:]):
             if not step.settled:
                 step.close_with_loop(ran_before=ran_before)
+
+    def _loop_round(self, loop: LoopRange) -> int:
+        opener = self.step(loop.opener_id)
+        return opener.rounds if opener is not None else 1
 
     def _known(self, step_ids: Sequence[str]) -> list[StepRecord]:
         return [step for step_id in step_ids if (step := self.step(step_id)) is not None]

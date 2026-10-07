@@ -5,6 +5,8 @@ import pytest
 from pulse.daemon.runs import RunState
 from pulse.domain.run import (
     InvalidTransition,
+    LoopRange,
+    RoundDecision,
     RunRecord,
     RunStatus,
     StepRecord,
@@ -441,11 +443,12 @@ def _loop_run(*statuses: StepStatus) -> RunRecord:
     return _run(*steps)
 
 
-def test_reopening_a_loop_counts_the_round_only_on_its_opener():
+def test_a_granted_round_reopens_the_range_and_counts_only_on_its_opener():
     run = _loop_run(StepStatus.DONE, StepStatus.DONE, StepStatus.DONE)
 
-    run.reopen_loop(["s0", "s1"])
+    decision = run.repeat_loop(LoopRange(step_ids=("s0", "s1"), ceiling=3))
 
+    assert decision == RoundDecision(round=2, granted=True, last=False)
     assert [step.rounds for step in run.steps] == [2, 1, 1]
     assert [step.status for step in run.steps] == [
         StepStatus.PENDING,
@@ -454,29 +457,47 @@ def test_reopening_a_loop_counts_the_round_only_on_its_opener():
     ]
 
 
-def test_the_loop_round_is_the_opener_round_count():
+def test_the_last_round_reopens_only_the_opener():
+    """The closer never gets the final word on its own fix."""
     run = _loop_run(StepStatus.DONE, StepStatus.DONE)
-    assert run.loop_round("s0") == 1
 
-    run.reopen_loop(["s0", "s1"])
+    decision = run.repeat_loop(LoopRange(step_ids=("s0", "s1"), ceiling=2))
 
-    assert run.loop_round("s0") == 2
-    assert run.loop_round("ghost") == 1, "a loop whose opener the run lacks is on its first round"
+    assert decision == RoundDecision(round=2, granted=True, last=True)
+    assert [step.status for step in run.steps] == [StepStatus.PENDING, StepStatus.DONE]
 
 
-@pytest.mark.parametrize(("reopens", "allowed"), [(0, True), (1, True), (2, False)])
-def test_a_loop_repeats_until_its_opener_reaches_the_ceiling(reopens: int, allowed: bool):
+def test_a_loop_at_its_ceiling_refuses_another_round_and_changes_nothing():
     run = _loop_run(StepStatus.DONE, StepStatus.DONE)
-    for _ in range(reopens):
-        run.reopen_loop(["s0", "s1"])
+    loop = LoopRange(step_ids=("s0", "s1"), ceiling=2)
+    run.repeat_loop(loop)
+    run.steps[0].start()
+    run.steps[0].deliver()
 
-    assert run.can_repeat("s0", ceiling=3) is allowed
+    decision = run.repeat_loop(loop)
+
+    assert decision == RoundDecision(round=2, granted=False, last=True)
+    assert [step.status for step in run.steps] == [StepStatus.DONE, StepStatus.DONE]
+    assert run.steps[0].rounds == 2
+
+
+def test_a_loop_whose_opener_the_run_lacks_is_on_its_first_round():
+    run = _loop_run(StepStatus.DONE)
+
+    decision = run.repeat_loop(LoopRange(step_ids=("ghost", "s0"), ceiling=3))
+
+    assert decision == RoundDecision(round=2, granted=True, last=False)
+
+
+def test_a_loop_range_needs_an_opener():
+    with pytest.raises(ValueError, match="opener"):
+        LoopRange(step_ids=(), ceiling=3)
 
 
 def test_closing_a_loop_on_its_first_round_skips_what_never_ran():
     run = _loop_run(StepStatus.DONE, StepStatus.PENDING, StepStatus.PENDING)
 
-    run.close_loop(["s0", "s1", "s2"])
+    run.close_loop(LoopRange(step_ids=("s0", "s1", "s2"), ceiling=3))
 
     assert [step.status for step in run.steps] == [
         StepStatus.DONE,
@@ -487,11 +508,12 @@ def test_closing_a_loop_on_its_first_round_skips_what_never_ran():
 
 def test_closing_a_loop_after_a_round_marks_the_rest_done():
     run = _loop_run(StepStatus.DONE, StepStatus.DONE)
-    run.reopen_loop(["s0"])
+    loop = LoopRange(step_ids=("s0", "s1"), ceiling=2)
+    run.repeat_loop(loop)
     run.steps[0].start()
     run.steps[0].deliver()
 
-    run.close_loop(["s0", "s1"])
+    run.close_loop(loop)
 
     assert run.steps[1].status == StepStatus.DONE
 
