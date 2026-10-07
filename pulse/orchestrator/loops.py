@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pulse.store import runs as run_store
+from pulse.domain.run import RunRecord
 from pulse.store.workflow_defs import WorkflowDef
 
 
@@ -44,59 +44,38 @@ def find_loops(definition: WorkflowDef) -> dict[int, Loop]:
 
 
 def repeat_loop(
-    run: run_store.RunRecord, definition: WorkflowDef, loop: Loop, label: str
+    run: RunRecord, definition: WorkflowDef, loop: Loop, label: str
 ) -> tuple[int | None, str]:
     """Handle a request for another round: `(index to jump back to, notice)`.
 
-    Index is `None` when the ceiling was reached. The ceiling counts the opener's
-    rounds as persisted in the DB so it survives resuming the run.
+    Index is `None` when the ceiling was reached. Only the run in memory changes;
+    the caller persists it.
     """
     ceiling = definition.steps[loop.end].repeat_max
-    opener = run.step(definition.steps[loop.start].step_id)
-    number = opener.rounds if opener is not None else 1
-    if number >= ceiling:
+    opener_id = definition.steps[loop.start].step_id
+    number = run.loop_round(opener_id)
+    if not run.can_repeat(opener_id, ceiling=ceiling):
         return None, f"{label}: teto de {ceiling} rodadas atingido — o que sobrou vai no relatório"
     last = number + 1 >= ceiling
-    reopen_loop(run, definition, loop, last=last)
+    run.reopen_loop(_step_ids(definition, loop, last=last))
     if not last:
         return loop.start, f"{label} pediu a {number + 1}ª rodada"
+    opener = run.step(opener_id)
     who = opener.label if opener else "o início do laço"
     return loop.start, f"{label} pediu a {number + 1}ª rodada — a última: só {who} roda"
 
 
-def reopen_loop(
-    run: run_store.RunRecord,
-    definition: WorkflowDef,
-    loop: Loop,
-    *,
-    last: bool = False,
-) -> None:
-    """Reset the range's steps to `pending` and count one more round on the opener.
-
-    Rounds reuse the same `step_id`s so the panel keeps one row per step. On the
-    `last` round only the opener is reopened, so the closer never gets the final
-    word on its own fix. Elapsed time accumulates in each step's `carried_seconds`.
-    """
-    steps = definition.steps[loop.start : loop.start + 1 if last else loop.end + 1]
-    for step in steps:
-        record = run.step(step.step_id)
-        if record is None:
-            continue
-        record.reopen_round(opener=step.step_id == definition.steps[loop.start].step_id)
-    run_store.save(run)
-
-
-def close_loop(run: run_store.RunRecord, definition: WorkflowDef, loop: Loop) -> int:
+def close_loop(run: RunRecord, definition: WorkflowDef, loop: Loop) -> int:
     """Settle the rest of the range without running it; return the index to continue from.
 
-    Steps that ran in an earlier round become `done`; steps that never ran become `skipped`.
+    Only the run in memory changes; the caller persists it.
     """
-    opener = run.step(definition.steps[loop.start].step_id)
-    ran_before = opener is not None and opener.rounds > 1
-    for step in definition.steps[loop.start + 1 : loop.end + 1]:
-        record = run.step(step.step_id)
-        if record is None or record.settled:
-            continue
-        record.close_with_loop(ran_before=ran_before)
-    run_store.save(run)
+    run.close_loop(_step_ids(definition, loop))
     return loop.end + 1
+
+
+def _step_ids(definition: WorkflowDef, loop: Loop, *, last: bool = False) -> list[str]:
+    """The range's step ids, opener first. On the `last` round only the opener
+    reopens, so the closer never gets the final word on its own fix."""
+    end = loop.start + 1 if last else loop.end + 1
+    return [step.step_id for step in definition.steps[loop.start : end]]

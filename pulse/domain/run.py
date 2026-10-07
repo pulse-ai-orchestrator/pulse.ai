@@ -11,7 +11,7 @@ stored in SQLite, so no migration is needed.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -199,15 +199,13 @@ class StepRecord:
         self.ended_at = ""
         return True
 
-    def reopen_round(self, *, opener: bool) -> None:
-        """Start a new loop round on the same row; the opener counts the rounds.
+    def reopen_round(self) -> None:
+        """Start a new loop round on the same row.
 
         The round's net time (wall time minus wait) moves to `carried_seconds`
         before its start and end are cleared, so panel and history show the sum.
         """
         self._require_not({StepStatus.RUNNING}, "reopen")
-        if opener:
-            self.rounds += 1
         self.carried_seconds += net_seconds(self.started_at, self.ended_at, self.waiting_seconds)
         self.waiting_seconds = 0.0
         self.status = StepStatus.PENDING
@@ -397,6 +395,39 @@ class RunRecord:
         for item in running:
             item.fail()
         return running
+
+    def loop_round(self, opener_id: str) -> int:
+        """Round the loop opened by `opener_id` is on; persisted, so it survives a resume."""
+        opener = self.step(opener_id)
+        return opener.rounds if opener is not None else 1
+
+    def can_repeat(self, opener_id: str, *, ceiling: int) -> bool:
+        return self.loop_round(opener_id) < ceiling
+
+    def reopen_loop(self, step_ids: Sequence[str]) -> None:
+        """Return the loop's steps to `pending` for another round.
+
+        `step_ids[0]` opens the loop and is the only one that counts the round.
+        Rounds reuse the same rows so the panel keeps one line per step.
+        """
+        for step in self._known(step_ids):
+            step.reopen_round()
+            if step.step_id == step_ids[0]:
+                step.rounds += 1
+
+    def close_loop(self, step_ids: Sequence[str]) -> None:
+        """Settle the loop's remaining steps without running them.
+
+        `step_ids[0]` opens the loop. After an earlier round the rest ran before
+        and is `done`; on the first round it never ran and is `skipped`.
+        """
+        ran_before = self.loop_round(step_ids[0]) > 1
+        for step in self._known(step_ids[1:]):
+            if not step.settled:
+                step.close_with_loop(ran_before=ran_before)
+
+    def _known(self, step_ids: Sequence[str]) -> list[StepRecord]:
+        return [step for step_id in step_ids if (step := self.step(step_id)) is not None]
 
     def _require_not_completed(self, action: str) -> None:
         if self.status == RunStatus.COMPLETED:

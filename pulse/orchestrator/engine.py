@@ -346,6 +346,7 @@ def _execute(
 
                 if signal == LoopSignal.CLOSE and opens_loop:
                     index = close_loop(run, definition, loops[at])
+                    run_store.save(run)
                     _sync_steps(runner, run)
                     _notify(runner, f"{record.label}: nada a corrigir — laço encerrado")
                     break
@@ -355,6 +356,7 @@ def _execute(
                     _notify(runner, message)
                     if target is not None:
                         index = target
+                        run_store.save(run)
                         _sync_steps(runner, run)
                         break
 

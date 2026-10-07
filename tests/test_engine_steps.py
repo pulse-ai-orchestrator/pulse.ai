@@ -1375,3 +1375,37 @@ def test_stopping_while_typing_guidance_does_not_reopen_the_menu(
 
     assert code == RUN_STOPPED
     assert len(runner._prompt_handler.asked) == 1, "the menu does not come back after stopping"
+
+
+def test_the_panel_never_sees_a_closed_loop_the_database_lacks(wired, monkeypatch, tmp_path):
+    """Closing the loop is saved before the panel hears of it.
+
+    Otherwise a crash between the two leaves history showing `fix` pending while
+    the screen showed it skipped, and a resume would run a step the loop waived.
+    """
+    make_workflow(
+        "demo",
+        steps=[("review", "Review"), ("fix", "Fix"), ("after", "Depois")],
+        repeat=("fix", "review", 3),
+    )
+    runner = _Runner([_clean(approval=True), _approved("depois")])
+    stored_when_shown: list[str] = []
+    show = runner._stream.apply_phase_statuses
+
+    def snapshot(**kwargs) -> None:
+        if "fix" in kwargs["skipped_ids"] and not stored_when_shown:
+            stored_when_shown.append(run_store.list_runs(tmp_path)[0].step("fix").status)
+        show(**kwargs)
+
+    runner._stream.apply_phase_statuses = snapshot
+    _install(monkeypatch, runner)
+
+    run_workflow(
+        workflow_id="demo",
+        user_prompt="x",
+        stream=runner._stream,
+        prompt_handler=runner._prompt_handler,
+        render_header=False,
+    )
+
+    assert stored_when_shown == ["skipped"]

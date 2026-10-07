@@ -113,17 +113,15 @@ def test_release_leaves_a_settled_step_alone():
     assert step.status == StepStatus.DONE
 
 
-def test_reopening_a_round_clears_the_attempt_and_counts_only_on_the_opener():
+def test_reopening_a_round_clears_the_attempt_without_counting_it():
+    """Counting rounds is the run's call: only the loop's opener counts them."""
     opener = _running("review")
     opener.record_reply(session_id="s1", summary="ok")
     opener.deliver()
-    other = _running("fix")
-    other.deliver()
 
-    opener.reopen_round(opener=True)
-    other.reopen_round(opener=False)
+    opener.reopen_round()
 
-    assert (opener.rounds, other.rounds) == (2, 1)
+    assert opener.rounds == 1
     assert opener.status == StepStatus.PENDING
     assert (opener.summary, opener.acp_session_id, opener.started_at, opener.ended_at) == (
         "",
@@ -144,7 +142,7 @@ def test_each_round_carries_its_net_time_into_the_next():
         carried_seconds=60.0,
     )
 
-    step.reopen_round(opener=True)
+    step.reopen_round()
 
     assert step.carried_seconds == 60.0 + 360.0
     assert step.waiting_seconds == 0.0
@@ -152,13 +150,13 @@ def test_each_round_carries_its_net_time_into_the_next():
 
 def test_a_round_that_never_ran_carries_nothing():
     step = StepRecord(step_id="fix", carried_seconds=30.0)
-    step.reopen_round(opener=False)
+    step.reopen_round()
     assert step.carried_seconds == 30.0
 
 
 def test_a_running_step_cannot_be_reopened():
     with pytest.raises(InvalidTransition):
-        _running().reopen_round(opener=True)
+        _running().reopen_round()
 
 
 def test_closing_with_the_loop_depends_on_whether_the_step_ran_before():
@@ -394,47 +392,6 @@ def test_fan_out_siblings_are_the_children_of_the_same_step():
     assert [step.step_id for step in siblings] == ["build:T1", "build:T2"]
     assert run.fan_out_siblings("plan") == []
 
-def test_a_completed_run_cannot_begin_another_step():
-    """Only a resume over an unfinished run may run steps again; a completed run is history."""
-    step = _running()
-    step.deliver()
-    run = _run(step, StepRecord(step_id="two", status=StepStatus.SKIPPED))
-    run.complete()
-
-    with pytest.raises(InvalidTransition):
-        run.begin_step("one")
-    assert run.status == RunStatus.COMPLETED
-
-
-def test_a_run_cannot_begin_a_step_that_already_settled():
-    done = _running("one")
-    done.deliver()
-    run = _run(done, StepRecord(step_id="two"))
-
-    with pytest.raises(InvalidTransition):
-        run.begin_step("one")
-    assert run.current_step == ""
-
-
-@pytest.mark.parametrize("status", [RunStatus.STOPPED, RunStatus.BLOCKED, RunStatus.FAILED])
-def test_a_resumed_run_begins_its_next_step_again(status: RunStatus):
-    run = _run(StepRecord(step_id="one"))
-    run.status = status
-
-    run.begin_step("one")
-
-    assert run.status == RunStatus.RUNNING
-
-
-@pytest.mark.parametrize("code", [RUN_STOPPED, RUN_BLOCKED, 1])
-def test_a_completed_run_keeps_its_completion(code: int):
-    """A late stop or crash handler must not rewrite a run that already finished cleanly."""
-    run = _run()
-    run.complete()
-
-    with pytest.raises(InvalidTransition):
-        run.end(code)
-    assert run.status == RunStatus.COMPLETED
 
 def test_a_completed_run_cannot_begin_another_step():
     """Only a resume over an unfinished run may run steps again; a completed run is history."""
@@ -477,6 +434,67 @@ def test_a_completed_run_keeps_its_completion(code: int):
     with pytest.raises(InvalidTransition):
         run.end(code)
     assert run.status == RunStatus.COMPLETED
+
+
+def _loop_run(*statuses: StepStatus) -> RunRecord:
+    steps = [StepRecord(step_id=f"s{index}", status=status) for index, status in enumerate(statuses)]
+    return _run(*steps)
+
+
+def test_reopening_a_loop_counts_the_round_only_on_its_opener():
+    run = _loop_run(StepStatus.DONE, StepStatus.DONE, StepStatus.DONE)
+
+    run.reopen_loop(["s0", "s1"])
+
+    assert [step.rounds for step in run.steps] == [2, 1, 1]
+    assert [step.status for step in run.steps] == [
+        StepStatus.PENDING,
+        StepStatus.PENDING,
+        StepStatus.DONE,
+    ]
+
+
+def test_the_loop_round_is_the_opener_round_count():
+    run = _loop_run(StepStatus.DONE, StepStatus.DONE)
+    assert run.loop_round("s0") == 1
+
+    run.reopen_loop(["s0", "s1"])
+
+    assert run.loop_round("s0") == 2
+    assert run.loop_round("ghost") == 1, "a loop whose opener the run lacks is on its first round"
+
+
+@pytest.mark.parametrize(("reopens", "allowed"), [(0, True), (1, True), (2, False)])
+def test_a_loop_repeats_until_its_opener_reaches_the_ceiling(reopens: int, allowed: bool):
+    run = _loop_run(StepStatus.DONE, StepStatus.DONE)
+    for _ in range(reopens):
+        run.reopen_loop(["s0", "s1"])
+
+    assert run.can_repeat("s0", ceiling=3) is allowed
+
+
+def test_closing_a_loop_on_its_first_round_skips_what_never_ran():
+    run = _loop_run(StepStatus.DONE, StepStatus.PENDING, StepStatus.PENDING)
+
+    run.close_loop(["s0", "s1", "s2"])
+
+    assert [step.status for step in run.steps] == [
+        StepStatus.DONE,
+        StepStatus.SKIPPED,
+        StepStatus.SKIPPED,
+    ]
+
+
+def test_closing_a_loop_after_a_round_marks_the_rest_done():
+    run = _loop_run(StepStatus.DONE, StepStatus.DONE)
+    run.reopen_loop(["s0"])
+    run.steps[0].start()
+    run.steps[0].deliver()
+
+    run.close_loop(["s0", "s1"])
+
+    assert run.steps[1].status == StepStatus.DONE
+
 
 def test_step_times_come_from_the_injected_clock():
     ticks = iter(["2026-10-07T10:00:00+00:00", "2026-10-07T10:05:00+00:00"])
