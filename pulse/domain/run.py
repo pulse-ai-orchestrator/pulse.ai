@@ -11,6 +11,7 @@ stored in SQLite, so no migration is needed.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -84,9 +85,16 @@ class InvalidTransition(RuntimeError):
     """A status change the run or step does not allow from its current state."""
 
 
+Clock = Callable[[], str]
+
+
 def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
+
+def _system_clock() -> str:
+    # Looked up on each call so tests that patch `utc_now` still drive every step.
+    return utc_now()
 
 
 def net_seconds(started_at: str, ended_at: str, waiting_seconds: float) -> float:
@@ -113,6 +121,7 @@ class StepRecord:
     waiting_seconds: float = 0.0
     rounds: int = 1
     carried_seconds: float = 0.0
+    clock: Clock = field(default=_system_clock, repr=False, compare=False)
 
     @property
     def settled(self) -> bool:
@@ -133,7 +142,7 @@ class StepRecord:
         """Begin an attempt. Retries keep the first `started_at` of the round."""
         self._require_not(SETTLED, "start")
         self.status = StepStatus.RUNNING
-        self.started_at = self.started_at or utc_now()
+        self.started_at = self.started_at or self.clock()
 
     def record_reply(self, *, session_id: str, summary: str) -> None:
         """Keep what the agent answered; an empty `session_id` keeps the previous one."""
@@ -177,7 +186,7 @@ class StepRecord:
         `ended_at` must cover it or the recorded duration shrinks or goes negative.
         """
         self._require({StepStatus.FAILED, StepStatus.BLOCKED}, "close after the menu")
-        self.ended_at = utc_now()
+        self.ended_at = self.clock()
 
     def release(self) -> bool:
         """Return a step cut by a stop to `pending` so a resume restarts it.
@@ -215,12 +224,12 @@ class StepRecord:
         self._require_not(SETTLED | {StepStatus.RUNNING}, "close with the loop")
         self.status = StepStatus.DONE if ran_before else StepStatus.SKIPPED
         self.summary = ""
-        self.ended_at = self.ended_at or utc_now()
+        self.ended_at = self.ended_at or self.clock()
 
     def _end_as(self, status: StepStatus, *, allowed: set[StepStatus]) -> None:
         self._require(allowed, f"mark as {status}")
         self.status = status
-        self.ended_at = utc_now()
+        self.ended_at = self.clock()
 
     def _require(self, allowed: set[StepStatus], action: str) -> None:
         if self.status not in allowed:
