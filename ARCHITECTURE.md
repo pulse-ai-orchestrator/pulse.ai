@@ -195,7 +195,10 @@ em cima de uma entrega que não existiu, em cascata. Agora: bloqueio sem
 sessão, para ele destravar o que estiver ao alcance dele; o que sobra vira
 `blocked` e **para a run** (`RUN_BLOCKED`, 131), que não é falha — nada quebrou,
 a entrega é que não aconteceu. `requires_outcome = 0` desliga o protocolo por
-step e devolve o comportamento antigo.
+step e devolve o comportamento antigo. A tabela que transforma a resposta em `done`/`blocked`/
+`failed`/`skipped` é uma função pura,
+[`judge_attempt`](pulse/orchestrator/verdict.py); o engine só aplica o veredito
+à run.
 
 **3. A lista de itens do fan-out**
 ([`pulse/orchestrator/fanout.py`](pulse/orchestrator/fanout.py)).

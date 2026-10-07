@@ -667,6 +667,8 @@ Reabrir pelo histórico usa as mesmas tabelas: `run_steps` dá a sidebar,
 | Criar/alterar um pipeline | `WORKFLOWS` (fábrica) ou `save_workflow()` em runtime |
 | Adicionar um backend (Gemini, Codex…) | módulo em `pulse/runtimes/` + entrada em `RUNTIMES` |
 | Mudar como o motor sequencia | `orchestrator/engine.py` |
+| Mudar como a resposta do agente encerra o step | `judge_attempt` em `orchestrator/verdict.py` |
+| Mudar a regra de rodadas de um laço | `RunRecord.repeat_loop` em `domain/run.py` |
 | Mudar o protocolo de aprovação | `prompts/approval.py` + `factory/shared/approval.md` |
 | Mudar o protocolo de fan-out | `orchestrator/fanout.py` + o `PHASE.md` que emite o bloco |
 | Adicionar uma chave de template | `_context()` em `engine.py` |

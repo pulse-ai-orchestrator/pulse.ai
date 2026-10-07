@@ -29,7 +29,7 @@ from pulse.orchestrator.cli_output import (
 )
 from pulse.orchestrator.fanout import POSITION_STRIDE, Item, expand
 from pulse.orchestrator.loops import close_loop, find_loops, repeat_loop
-from pulse.orchestrator.outcome import LoopSignal, Outcome, OutcomeStatus, parse_outcome
+from pulse.orchestrator.outcome import LoopSignal, OutcomeStatus, parse_outcome
 from pulse.orchestrator.prompts import (
     build_continuation_prompt,
     build_outcome_reminder_prompt,
@@ -37,9 +37,10 @@ from pulse.orchestrator.prompts import (
     guidance_block,
     outcome_protocol,
 )
+from pulse.orchestrator.verdict import Verdict, VerdictKind, judge_attempt
 from pulse.orchestrator.waits import RunWaits
 from pulse.ports import NullPromptPort, NullStreamSink
-from pulse.prompts.approval import CANCEL, SKIP, format_summary
+from pulse.prompts.approval import format_summary
 from pulse.prompts.permission import PermissionPolicy
 from pulse.prompts.render import TemplateError, render
 from pulse.runcontrol import RUN_BLOCKED, RUN_STOPPED, RunControl
@@ -55,7 +56,6 @@ from pulse.store.runs import (
 )
 from pulse.store.workflow_defs import StepDef, WorkflowDef, get_agent, get_workflow
 
-_SUCCESS_STOPS = frozenset({"end_turn", "end", "stop"})
 _POLICIES: dict[str, PermissionPolicy] = {
     "ask": "ask",
     "auto_approve": "auto_approve",
@@ -496,57 +496,34 @@ def _attempt_step(
         _fail(run, record)
         return None, _session_error(error)
 
-    agent_text = str(result.get("phaseSummary", ""))
     record.record_reply(
-        session_id=runner.last_session_id or "", summary=format_summary(agent_text)
+        session_id=runner.last_session_id or "",
+        summary=format_summary(str(result.get("phaseSummary", ""))),
     )
-
-    outcome = str(result.get("outcome", ""))
-    if outcome in {CANCEL, "cancelled"} or result.get("stopReason") == "cancelled":
-        _fail(run, record)
-        return None, "step cancelado"
-
-    if outcome == SKIP:
-        record.skip()
-        run_store.save(run)
-        if not cockpit:
-            print_workflow_result(f"⏭  {record.label} pulado")
-        return None, ""
-
-    if may_close and not result.get("approved") and parse_outcome(agent_text).closes:
-        return _settle(run, record, cockpit, LoopSignal.CLOSE)
-
-    if step.requires_approval and not bool(result.get("approved")):
-        _fail(run, record)
-        if not str(result.get("approvalAnswers", "")).strip():
-            return None, "o agente encerrou sem o bloco de aprovação nem um desfecho válido"
-        return None, "step não aprovado"
-
-    if not step.requires_approval and not _prompt_succeeded(result):
-        _fail(run, record)
-        return None, str(result.get("stopReason") or "o agente não concluiu o step")
-
-    repeats = False
-    if declares_outcome:
-        declared = parse_outcome(agent_text)
-        if not declared.delivered:
-            return _block(run, record, _blocked_reason(declared))
-        repeats = bool(step.repeat_from) and declared.repeats
-        if may_close and declared.closes:
-            return _settle(run, record, cockpit, LoopSignal.CLOSE)
-
-    return _settle(run, record, cockpit, LoopSignal.REPEAT if repeats else None)
+    verdict = judge_attempt(result, step, may_close=may_close)
+    _conclude(run, record, verdict, cockpit)
+    return verdict.signal, verdict.reason
 
 
-def _settle(
-    run: run_store.RunRecord, record: StepRecord, cockpit: bool, signal: LoopSignal | None
-) -> tuple[LoopSignal | None, str]:
-    """Record the step as delivered and pass the agent's loop signal on."""
-    record.deliver()
+def _conclude(
+    run: run_store.RunRecord, record: StepRecord, verdict: Verdict, cockpit: bool
+) -> None:
+    _CONCLUSIONS[verdict.kind](record)
     run_store.save(run)
-    if not cockpit:
+    if cockpit:
+        return
+    if verdict.kind == VerdictKind.DELIVERED:
         print_workflow_result(f"✓ {record.label}")
-    return signal, ""
+    elif verdict.kind == VerdictKind.SKIPPED:
+        print_workflow_result(f"⏭  {record.label} pulado")
+
+
+_CONCLUSIONS: dict[VerdictKind, Callable[[StepRecord], None]] = {
+    VerdictKind.DELIVERED: StepRecord.deliver,
+    VerdictKind.SKIPPED: StepRecord.skip,
+    VerdictKind.BLOCKED: StepRecord.block,
+    VerdictKind.FAILED: StepRecord.fail,
+}
 
 
 def _unblock_continuation(step: StepDef) -> Callable[..., str]:
@@ -572,24 +549,6 @@ def _unblock_continuation(step: StepDef) -> Callable[..., str]:
         return build_unblock_prompt(step_id=step.step_id, reason=declared.reason)
 
     return build
-
-
-def _blocked_reason(declared: Outcome) -> str:
-    if declared.status == OutcomeStatus.MISSING:
-        return (
-            "o agente encerrou sem declarar o desfecho do step — "
-            "não dá para afirmar que ele entregou o que o step pede"
-        )
-    return declared.reason or "o agente declarou bloqueio sem dizer o motivo"
-
-
-def _block(
-    run: run_store.RunRecord, record: StepRecord, reason: str
-) -> tuple[LoopSignal | None, str]:
-    """Record the step as blocked: it ran, did not crash, did not deliver."""
-    record.block()
-    run_store.save(run)
-    return None, reason
 
 
 def _close_after_menu(run: run_store.RunRecord, record: StepRecord) -> None:
@@ -770,10 +729,6 @@ def _ask_guidance(runner: AcpSessionRunner, title: str) -> str:
         return ""
     answer = ask_text("O que o agente deve fazer nesta nova tentativa?", title=title)
     return str(answer or "").strip()
-
-
-def _prompt_succeeded(result: dict[str, Any]) -> bool:
-    return str(result.get("stopReason") or "") in _SUCCESS_STOPS
 
 
 def _control(runner: AcpSessionRunner) -> RunControl:
