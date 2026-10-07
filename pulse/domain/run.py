@@ -431,8 +431,11 @@ class RunRecord:
 
         On the last round only the opener reopens, so the closer never gets the
         final word on its own fix. Rounds reuse the same rows so the panel keeps
-        one line per step; the count is persisted, so it survives a resume.
+        one line per step; the count is persisted, so it survives a resume. Without
+        the opener's row nothing counts the rounds, so none is granted.
         """
+        if self.step(loop.opener_id) is None:
+            return RoundDecision(round=1, granted=False, last=True)
         current = self._loop_round(loop)
         if current >= loop.ceiling:
             return RoundDecision(round=current, granted=False, last=True)

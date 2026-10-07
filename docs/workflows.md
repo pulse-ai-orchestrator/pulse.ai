@@ -291,7 +291,9 @@ número seria ruído. Quem está fora da faixa fica em `rounds = 1`.
 
 `repeat_from` que aponte para a frente, ou para um id que não existe, é ignorado
 em silêncio: um laço que não fecha travaria a run, e rodar a lista reta é o
-comportamento menos pior.
+comportamento menos pior. O mesmo vale para uma faixa que contém um step com
+`fan_out`: o fan-out troca a linha dele por uma por item, e o laço não teria
+quem contasse as voltas (o teto nunca chegaria) nem como reabrir os itens.
 
 O teto não é opcional. Sem ele, um agente que sempre pede mais uma rodada deixa
 a run sem fim, e o motor não tem como julgar se a próxima volta vale a pena.

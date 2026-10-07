@@ -24,7 +24,9 @@ def find_loops(definition: WorkflowDef) -> dict[int, Loop]:
     """Repeatable ranges of the definition, keyed by step index.
 
     A `repeat_from` that does not point to an earlier step is silently ignored,
-    as is a range overlapping one already found.
+    as is a range overlapping one already found or holding a fan-out step: the
+    fan-out replaces its row with one per item, which the loop can neither count
+    nor reopen.
     """
     found: dict[int, Loop] = {}
     at = {step.step_id: index for index, step in enumerate(definition.steps)}
@@ -35,7 +37,7 @@ def find_loops(definition: WorkflowDef) -> dict[int, Loop]:
         if start is None or start >= end:
             continue
         span = range(start, end + 1)
-        if any(index in found for index in span):
+        if any(index in found or definition.steps[index].fan_out for index in span):
             continue
         loop = Loop(start=start, end=end)
         for index in span:

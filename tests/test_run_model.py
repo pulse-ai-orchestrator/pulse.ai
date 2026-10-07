@@ -481,12 +481,14 @@ def test_a_loop_at_its_ceiling_refuses_another_round_and_changes_nothing():
     assert run.steps[0].rounds == 2
 
 
-def test_a_loop_whose_opener_the_run_lacks_is_on_its_first_round():
+def test_a_loop_whose_opener_the_run_lacks_refuses_every_round():
+    """Nobody would count the rounds, so granting one would let the loop run forever."""
     run = _loop_run(StepStatus.DONE)
 
     decision = run.repeat_loop(LoopRange(step_ids=("ghost", "s0"), ceiling=3))
 
-    assert decision == RoundDecision(round=2, granted=True, last=False)
+    assert decision.granted is False
+    assert run.steps[0].status == StepStatus.DONE
 
 
 def test_a_loop_range_needs_an_opener():
