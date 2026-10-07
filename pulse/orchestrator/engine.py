@@ -301,8 +301,7 @@ def _execute(
             index += 1
             previous = run.previous_delivery(definition_step.step_id)
             units = expand(run, definition_step, previous.summary if previous else "")
-            run_store.save(run)
-            _sync_steps(runner, run)
+            _persist(runner, run)
 
             for step, item in units:
                 record = run.add_step(
@@ -346,8 +345,7 @@ def _execute(
 
                 if signal == LoopSignal.CLOSE and opens_loop:
                     index = close_loop(run, definition, loops[at])
-                    run_store.save(run)
-                    _sync_steps(runner, run)
+                    _persist(runner, run)
                     _notify(runner, f"{record.label}: nada a corrigir — laço encerrado")
                     break
 
@@ -356,8 +354,7 @@ def _execute(
                     _notify(runner, message)
                     if target is not None:
                         index = target
-                        run_store.save(run)
-                        _sync_steps(runner, run)
+                        _persist(runner, run)
                         break
 
         run.complete()
@@ -419,8 +416,7 @@ def _run_step(
         if blocked:
             if choice == "skip":
                 record.skip_blocked()
-                run_store.save(run)
-                _sync_steps(runner, run)
+                _persist(runner, run)
                 _notify(runner, f"{record.label} pulado pelo usuário")
                 return 0, None
             if choice != "retry":
@@ -678,8 +674,7 @@ def _release_step(
     not redone.
     """
     if record.release():
-        run_store.save(run)
-        _sync_steps(runner, run)
+        _persist(runner, run)
     _notify(runner, f"Run parada em {label}" if label else "Run parada pelo usuário")
 
 
@@ -790,6 +785,12 @@ def _notify(runner: AcpSessionRunner, message: str) -> None:
     info = getattr(stream, "info", None) if stream is not None else None
     if callable(info):
         info(message)
+
+
+def _persist(runner: AcpSessionRunner, run: run_store.RunRecord) -> None:
+    """Save a change the panel must see: the step list or a status it shows."""
+    run_store.save(run)
+    _sync_steps(runner, run)
 
 
 def _sync_steps(runner: AcpSessionRunner, run: run_store.RunRecord) -> None:
