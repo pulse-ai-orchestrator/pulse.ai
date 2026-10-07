@@ -88,6 +88,7 @@ def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
+
 def net_seconds(started_at: str, ended_at: str, waiting_seconds: float) -> float:
     """Wall time minus wait; zero when the round has no recorded start and end."""
     try:
@@ -354,9 +355,17 @@ class RunRecord:
         self.worktree_path = ""
 
     def begin_step(self, step_id: str) -> None:
-        """Point the run at the step about to execute."""
-        if self.step(step_id) is None:
+        """Point the run at the step about to execute.
+
+        A stopped, blocked or failed run begins again when resumed; a completed
+        one is history, and a settled step is never run twice.
+        """
+        self._require_not_completed("begin a step")
+        step = self.step(step_id)
+        if step is None:
             raise InvalidTransition(f"run {self.id}: unknown step {step_id}")
+        if step.settled:
+            raise InvalidTransition(f"run {self.id}: step {step_id} already {step.status}")
         self.status = RunStatus.RUNNING
         self.current_step = step_id
 
@@ -370,6 +379,7 @@ class RunRecord:
         """Record why the run stopped early (stop, block or failure)."""
         if exit_code == 0:
             raise InvalidTransition(f"run {self.id}: a clean exit must go through complete()")
+        self._require_not_completed("end")
         self.status = RunStatus.for_exit_code(exit_code)
 
     def fail_running_steps(self) -> list[StepRecord]:
@@ -378,3 +388,7 @@ class RunRecord:
         for item in running:
             item.fail()
         return running
+
+    def _require_not_completed(self, action: str) -> None:
+        if self.status == RunStatus.COMPLETED:
+            raise InvalidTransition(f"run {self.id}: cannot {action} once completed")

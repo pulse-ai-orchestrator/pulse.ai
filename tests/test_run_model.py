@@ -393,3 +393,46 @@ def test_fan_out_siblings_are_the_children_of_the_same_step():
 
     assert [step.step_id for step in siblings] == ["build:T1", "build:T2"]
     assert run.fan_out_siblings("plan") == []
+
+def test_a_completed_run_cannot_begin_another_step():
+    """Only a resume over an unfinished run may run steps again; a completed run is history."""
+    step = _running()
+    step.deliver()
+    run = _run(step, StepRecord(step_id="two", status=StepStatus.SKIPPED))
+    run.complete()
+
+    with pytest.raises(InvalidTransition):
+        run.begin_step("one")
+    assert run.status == RunStatus.COMPLETED
+
+
+def test_a_run_cannot_begin_a_step_that_already_settled():
+    done = _running("one")
+    done.deliver()
+    run = _run(done, StepRecord(step_id="two"))
+
+    with pytest.raises(InvalidTransition):
+        run.begin_step("one")
+    assert run.current_step == ""
+
+
+@pytest.mark.parametrize("status", [RunStatus.STOPPED, RunStatus.BLOCKED, RunStatus.FAILED])
+def test_a_resumed_run_begins_its_next_step_again(status: RunStatus):
+    run = _run(StepRecord(step_id="one"))
+    run.status = status
+
+    run.begin_step("one")
+
+    assert run.status == RunStatus.RUNNING
+
+
+@pytest.mark.parametrize("code", [RUN_STOPPED, RUN_BLOCKED, 1])
+def test_a_completed_run_keeps_its_completion(code: int):
+    """A late stop or crash handler must not rewrite a run that already finished cleanly."""
+    run = _run()
+    run.complete()
+
+    with pytest.raises(InvalidTransition):
+        run.end(code)
+    assert run.status == RunStatus.COMPLETED
+
