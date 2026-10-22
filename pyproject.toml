@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=84.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,25 +9,25 @@ description = "Terminal-first orchestrator for AI agent workflows"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "textual>=1.0",
-    "fastapi>=0.115",
-    "uvicorn>=0.30",
-    "httpx>=0.27",
+    "textual>=8.2.8",
+    "fastapi>=0.146.0",
+    "uvicorn>=0.54.0",
+    "httpx>=0.28.1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=7.0",
-    "pytest-randomly>=3.16",
-    "hypothesis>=6.150",
-    "httpx>=0.27",
-    "ruff>=0.16",
-    "mypy>=2.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pytest-randomly>=5.0.0",
+    "hypothesis>=6.170.2",
+    "httpx>=0.28.1",
+    "ruff>=0.17.1",
+    "mypy>=2.4.0",
     "vulture>=2.16",
     "import-linter>=2.15",
-    "mutmut>=3.6",
-    "pre-commit>=4.0",
+    "mutmut>=3.8.0",
+    "pre-commit>=4.7.0",
 ]
 
 [project.scripts]
