@@ -1,16 +1,22 @@
 <div align="center">
 
+<img src="https://avatars.githubusercontent.com/u/339804102?s=200&v=4" alt="Pulse" width="96" height="96">
+
 # Pulse
 
 **Orquestrador de agentes de IA via ACP, terminal-first.**
 
 Decide qual agente roda agora — e quando. O resto é dado.
 
-[![CI](https://github.com/jonathancmatos/pulse.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathancmatos/pulse.ai/actions/workflows/ci.yml)
+[![CI](https://github.com/pulse-ai-orchestrator/pulse.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/pulse-ai-orchestrator/pulse.ai/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.14-blue)
 ![Protocolo](https://img.shields.io/badge/protocolo-ACP-6f42c1)
 ![Runtimes](https://img.shields.io/badge/runtimes-Cursor%20%7C%20Claude%20Code%20%7C%20Codex-informational)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
+[![Estrelas](https://img.shields.io/github/stars/pulse-ai-orchestrator/pulse.ai?style=flat&label=estrelas)](https://github.com/pulse-ai-orchestrator/pulse.ai/stargazers)
+[![Discussions](https://img.shields.io/github/discussions/pulse-ai-orchestrator/pulse.ai?label=discussions)](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions)
+
+Se o Pulse for útil pra você, deixe uma ⭐: é o que ajuda o projeto a ser encontrado.
 
 </div>
 
@@ -39,6 +45,7 @@ SQLite** — o pacote não traz pipeline, prompt de domínio nem skill embutida.
 - [Referência de comandos](#referência-de-comandos)
 - [Documentação](#documentação)
 - [Desenvolvimento](#desenvolvimento)
+- [Comunidade](#comunidade)
 - [Contribuindo](#contribuindo)
 - [Licença](#licença)
 
@@ -97,7 +104,7 @@ Camadas, fluxos e glossário: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - Node.js 18+ (`npx`) no PATH, para os runtimes `claude` e `codex`
 
 ```bash
-pipx install git+https://github.com/jonathancmatos/pulse.ai.git
+pipx install git+https://github.com/pulse-ai-orchestrator/pulse.ai.git
 ```
 
 O pipx instala o Pulse num ambiente isolado e coloca os comandos `pulse` e
@@ -106,13 +113,13 @@ O pipx instala o Pulse num ambiente isolado e coloca os comandos `pulse` e
 | Ação | Comando |
 | --- | --- |
 | Atualizar | `pipx upgrade pulse` |
-| Fixar uma versão ou branch | `pipx install git+https://github.com/jonathancmatos/pulse.ai.git@<tag-ou-branch>` |
+| Fixar uma versão ou branch | `pipx install git+https://github.com/pulse-ai-orchestrator/pulse.ai.git@<tag-ou-branch>` |
 | Desinstalar | `pipx uninstall pulse` |
 
 Para desenvolver no próprio Pulse, instale a partir do clone em modo editável:
 
 ```bash
-git clone https://github.com/jonathancmatos/pulse.ai.git
+git clone https://github.com/pulse-ai-orchestrator/pulse.ai.git
 cd pulse.ai
 pipx install -e .
 ```
@@ -337,9 +344,24 @@ Semgrep, pip-audit e Gitleaks). Invariantes de arquitetura — seed de fábrica,
 contrato OpenAPI, contratos de import, tamanho de arquivo, links da documentação —
 são testes em [`tests/architecture/`](tests/architecture/).
 
+## Comunidade
+
+| Quero… | Onde |
+| --- | --- |
+| Tirar uma dúvida | [Discussions → Q&A](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions/categories/q-a) |
+| Sugerir uma ideia ou um workflow | [Discussions → Ideas](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions/categories/ideas) |
+| Mostrar como uso o Pulse | [Discussions → Show and tell](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions/categories/show-and-tell) |
+| Reportar um bug | [Issues](https://github.com/pulse-ai-orchestrator/pulse.ai/issues/new/choose) |
+| Fazer a primeira contribuição | [`good first issue`](https://github.com/pulse-ai-orchestrator/pulse.ai/labels/good%20first%20issue) |
+
+Quem participa concorda com o
+[Código de Conduta](https://github.com/pulse-ai-orchestrator/pulse.ai/blob/main/CODE_OF_CONDUCT.md).
+
 ## Contribuindo
 
-Contribuições são bem-vindas. Antes de abrir um PR:
+Contribuições são bem-vindas. O passo a passo completo está no
+[guia de contribuição](https://github.com/pulse-ai-orchestrator/pulse.ai/blob/main/CONTRIBUTING.md).
+Antes de abrir um PR:
 
 1. Leia [`AGENTS.md`](AGENTS.md) — as regras que valem para humanos e agentes.
 2. Faça branch a partir de `main` e use [conventional commits](https://www.conventionalcommits.org/).
@@ -349,7 +371,8 @@ Contribuições são bem-vindas. Antes de abrir um PR:
 
 Questões de segurança: use o kit em
 [`.claude/skills/security-audit/`](.claude/skills/security-audit/SKILL.md) e
-reporte vulnerabilidades em canal privado, não em issue pública.
+reporte vulnerabilidades em canal privado, não em issue pública, seguindo a
+[política de segurança](https://github.com/pulse-ai-orchestrator/pulse.ai/blob/main/SECURITY.md).
 
 ## Licença
 
