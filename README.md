@@ -1,74 +1,123 @@
+<div align="center">
+
 # Pulse
 
-Orquestrador de agentes de IA via ACP, terminal-first. Suporta **Cursor**
-(`agent` CLI) e **Claude Code** (`claude` CLI).
+**Orquestrador de agentes de IA via ACP, terminal-first.**
 
-A responsabilidade do Pulse é uma só: **apontar qual agente roda agora e
-quando**. Ele não sabe o que o agente faz. Workflows, steps e agentes são dado
-em SQLite — o pacote não traz pipeline, prompt de domínio nem skill embutida.
+Decide qual agente roda agora — e quando. O resto é dado.
 
-Documentação de arquitetura (camadas, fluxos, glossário): [`ARCHITECTURE.md`](ARCHITECTURE.md).
+[![CI](https://github.com/jonathancmatos/pulse.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathancmatos/pulse.ai/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.14-blue)
+![Protocolo](https://img.shields.io/badge/protocolo-ACP-6f42c1)
+![Runtimes](https://img.shields.io/badge/runtimes-Cursor%20%7C%20Claude%20Code%20%7C%20Codex-informational)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
 
-## Arquitetura
+</div>
+
+---
+
+O Pulse coordena os agentes de IA que você já usa — **Cursor**, **Claude Code** e
+**OpenAI Codex** — por meio do [Agent Client Protocol](https://agentclientprotocol.com)
+(ACP). Ele tem uma única responsabilidade: **apontar qual agente roda agora e
+quando**.
+
+O Pulse não sabe o que o agente faz, não lê o que ele produziu e não espera
+arquivos com nomes conhecidos. Workflows, steps e agentes são **dados em
+SQLite** — o pacote não traz pipeline, prompt de domínio nem skill embutida.
+
+## Sumário
+
+- [Destaques](#destaques)
+- [Como funciona](#como-funciona)
+- [Instalação](#instalação)
+- [Primeiros passos](#primeiros-passos)
+- [Runtimes suportados](#runtimes-suportados)
+- [Workflows](#workflows)
+- [Configuração](#configuração)
+- [Worktree por run](#worktree-por-run)
+- [Daemon e API](#daemon-e-api)
+- [Referência de comandos](#referência-de-comandos)
+- [Documentação](#documentação)
+- [Desenvolvimento](#desenvolvimento)
+- [Contribuindo](#contribuindo)
+- [Licença](#licença)
+
+## Destaques
+
+- **Workflows como dado.** Um workflow é uma linha em `workflow_defs` mais N
+  steps em `workflow_steps`. Nenhum `if workflow_id == ...` no motor.
+- **Uma sessão ACP por step.** O step seguinte recebe só o resumo do anterior,
+  o que permite trocar de runtime no meio da run e retomar refazendo um step só.
+- **Aprovação humana onde importa.** Cada step declara se o Pulse espera
+  aprovação antes de seguir; decisões cobertas pela política de permissões são
+  resolvidas no daemon e nunca viram pergunta.
+- **Runs sobrevivem ao terminal.** O estado pertence ao daemon: fechar a TUI não
+  congela nem perde a run.
+- **Isolamento por git worktree.** Cada run pode trabalhar na própria branch, sem
+  tocar a árvore do editor — revisar a entrega vira um `git diff`.
+- **Local-first e seguro por padrão.** SQLite em `~/.pulse/pulse.db`, socket Unix
+  com permissão só do usuário e HTTP preso a `127.0.0.1` com token por início.
+- **Extensível sem tocar no motor.** Um runtime novo é uma subclasse de
+  `AgentRuntime`; config, doctor e onboarding o enxergam sem mudanças.
+
+## Como funciona
 
 ```
-CLI (TUI)  --HTTP/UDS-->  Engine daemon  --ACP-->  runtime (Cursor | Claude Code)
+┌─────────────┐  HTTP / UDS  ┌──────────────────┐     ACP     ┌──────────────────────────┐
+│  CLI / TUI  │ ───────────▶ │  Engine (daemon) │ ──────────▶ │  Cursor | Claude | Codex │
+│ cliente fino│              │  fonte da verdade│             │         runtime          │
+└─────────────┘              └────────┬─────────┘             └──────────────────────────┘
+                                      │
+                                      ▼
+                              ~/.pulse/pulse.db
+                     (workflows, agentes, runs, config)
 ```
 
-- **Engine** (`pulse-engine`): composition root; dono do estado e das definições.
-  Código em [`pulse/daemon/`](pulse/daemon/) e [`pulse/api/`](pulse/api/).
-- **CLI** (`pulse`): cliente fino, somente TUI Textual. Código em
-  [`pulse/cli/main.py`](pulse/cli/main.py), [`pulse/tui/`](pulse/tui/) e
-  [`pulse/client/`](pulse/client/).
-- O daemon expõe a mesma API em dois transportes: Unix Domain Socket
-  `~/.pulse/daemon.sock` (usado pela CLI) e HTTP em `127.0.0.1:8787` (tooling).
-- Contrato: [`contracts/openapi.yaml`](contracts/openapi.yaml)
-
-```bash
-pulse daemon start|status|stop
-pulse-engine                  # foreground (= python -m pulse.daemon serve)
-pulse-engine --host 127.0.0.1 --port 8787
-```
-
-`--host` só aceita `127.0.0.1` ou `localhost`, e a API recusa requests de navegador
-([ADR 0003](docs/adr/0003-listeners-locais-recusam-navegador.md)). Por TCP, toda
-request leva o token do daemon, que muda a cada início
-([ADR 0005](docs/adr/0005-tcp-exige-token-do-daemon.md)):
-
-```bash
-curl -H "Authorization: Bearer $(jq -r .token ~/.pulse/daemon.json)" \
-  http://127.0.0.1:8787/api/status
-```
-
-## Runtimes suportados
-
-Um *runtime* é o backend que executa um Pulse agent. Cada um declara binário,
-comando ACP, checagens de ambiente e como aplicar modo e modelo:
-
-| Runtime | Binário | Comando ACP | Autenticação |
+| Componente | Executável | Papel | Código |
 | --- | --- | --- | --- |
-| `cursor` | `agent` | `agent acp` | `agent login` ou `CURSOR_API_KEY` |
-| `claude` | `claude` | `npx -y @agentclientprotocol/claude-agent-acp@0.86.0` | `claude /login` ou `ANTHROPIC_API_KEY` |
+| Engine | `pulse-engine` | Composition root: dono do estado, das definições e das runs | [`pulse/daemon/`](pulse/daemon/), [`pulse/api/`](pulse/api/) |
+| CLI | `pulse` | Cliente fino com TUI Textual; nunca executa um workflow no próprio processo | [`pulse/cli/`](pulse/cli/), [`pulse/tui/`](pulse/tui/), [`pulse/client/`](pulse/client/) |
 
-O Claude Code não fala ACP nativamente: o Pulse usa o adapter oficial distribuído
-via npm, então o **Node.js 18+ (`npx`) precisa estar no PATH**. O adapter herda o
-login do `claude` CLI — não há passo de autenticação separado.
+O daemon expõe **um contrato em dois transportes**: Unix Domain Socket em
+`~/.pulse/daemon.sock` (usado pela CLI) e HTTP em `127.0.0.1:8787` (tooling). O
+contrato está em [`contracts/openapi.yaml`](contracts/openapi.yaml).
 
-Modelos do runtime `claude`: `default`, `opus[1m]`, `claude-fable-5-1`, `sonnet`,
-`haiku`.
-
-O registry fica em [`pulse/runtimes/`](pulse/runtimes/): adicionar um agente novo
-é escrever um módulo com a subclasse de `AgentRuntime` e registrá-lo em
-`RUNTIMES`. O resto do Pulse (config, doctor, onboarding, session runner) passa a
-enxergá-lo sem mudanças.
+Camadas, fluxos e glossário: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Instalação
 
+**Requisitos**
+
+- macOS ou Linux. O Windows nativo não é suportado, porque a CLI fala com o
+  daemon por socket Unix; no Windows, use o [WSL2](https://learn.microsoft.com/windows/wsl/)
+- Python 3.11 ou superior
+- [pipx](https://pipx.pypa.io)
+- Ao menos um runtime instalado e autenticado (veja
+  [Runtimes suportados](#runtimes-suportados))
+- Node.js 18+ (`npx`) no PATH, para os runtimes `claude` e `codex`
+
 ```bash
+pipx install git+https://github.com/jonathancmatos/pulse.ai.git
+```
+
+O pipx instala o Pulse num ambiente isolado e coloca os comandos `pulse` e
+`pulse-engine` no PATH.
+
+| Ação | Comando |
+| --- | --- |
+| Atualizar | `pipx upgrade pulse` |
+| Fixar uma versão ou branch | `pipx install git+https://github.com/jonathancmatos/pulse.ai.git@<tag-ou-branch>` |
+| Desinstalar | `pipx uninstall pulse` |
+
+Para desenvolver no próprio Pulse, instale a partir do clone em modo editável:
+
+```bash
+git clone https://github.com/jonathancmatos/pulse.ai.git
+cd pulse.ai
 pipx install -e .
 ```
 
-## Primeiro uso
+## Primeiros passos
 
 ```bash
 pulse init
@@ -76,73 +125,60 @@ pulse init
 
 O wizard pergunta qual runtime será o padrão e verifica:
 
-- o binário do runtime no PATH (`agent`, ou `claude` + `npx`)
-- autenticação (`agent login`/`CURSOR_API_KEY`, ou `claude /login`/`ANTHROPIC_API_KEY`)
-- conexão ACP com prompt de teste
-- diretório padrão, modelo e política de permissões
+- o binário do runtime no PATH (`agent`, `claude` ou `codex`, além de `npx` quando necessário);
+- a autenticação do runtime;
+- a conexão ACP, com um prompt de teste;
+- diretório padrão, modelo e política de permissões.
+
+Ao final, a configuração da máquina é salva em `~/.pulse/pulse.db` e o workspace
+atual é registrado no SQLite (se ainda não existir). Depois, basta rodar:
+
+```bash
+pulse
+```
+
+Para iniciar uma tarefa (ex.: **Correção rápida**, **Nova spec**), só a
+**descrição** é obrigatória:
+
+| Tecla | Ação |
+| --- | --- |
+| `Enter` | Inicia com a config do projeto |
+| `Ctrl+J` ou `\` + `Enter` | Quebra linha |
+| `@` | Lista os arquivos do projeto não ignorados pelo git; `↑`/`↓` escolhem e `Enter`/`Tab` inserem o caminho |
+| `Ctrl+O` | Abre **▸ Mais opções**: título, slug (nome da branch) e config da run |
+| `Tab` / `Espaço` | Mudam de campo / marcam uma opção |
+
+Em **Mais opções**, a config da run — *Auto branch*, *Auto commit* e *Auto PR/MR* —
+começa com o que está em *Configurações* e vale só para aquela run. O modo
+escolhido vale para as próximas tarefas até fechar o Pulse.
+
+## Runtimes suportados
+
+Um *runtime* é o backend que executa um agente do Pulse. Cada um declara binário,
+comando ACP, checagens de ambiente e como aplicar modo e modelo.
+
+| Runtime | Binário | Comando ACP | Autenticação |
+| --- | --- | --- | --- |
+| `cursor` | `agent` | `agent acp` | `agent login` ou `CURSOR_API_KEY` |
+| `claude` | `claude` | `npx -y @agentclientprotocol/claude-agent-acp@0.86.0` | `claude /login` ou `ANTHROPIC_API_KEY` |
+| `codex` | `codex` | `npx -y @agentclientprotocol/codex-acp@2.1.1` | `codex login`, `CODEX_API_KEY` ou `OPENAI_API_KEY` |
+
+Claude Code e Codex não falam ACP nativamente: o Pulse usa os adapters oficiais
+distribuídos via npm, com versão fixada. Cada adapter herda o login do CLI
+correspondente — não há passo de autenticação separado.
+
+Modelos padrão do runtime `claude`: `default`, `opus[1m]`, `claude-fable-5-1`,
+`sonnet`, `haiku`.
 
 O `pulse doctor` reprova apenas o runtime ativo; os demais aparecem como aviso.
-Assim uma máquina que só tem o Claude não falha por não ter o Cursor instalado.
+Uma máquina que só tem o Claude não falha por não ter o Cursor instalado.
 
-A configuração da máquina e dos projetos é salva em `~/.pulse/pulse.db`.
-Ao final, o `pulse init` também registra o workspace no SQLite (se ainda não existir).
+**Adicionando um runtime.** O registry fica em
+[`pulse/runtimes/`](pulse/runtimes/): escreva um módulo com a subclasse de
+`AgentRuntime` e registre-a em `RUNTIMES`. Config, doctor, onboarding e session
+runner passam a enxergá-lo sem nenhuma outra mudança.
 
-## Configuração por projeto
-
-Cada projeto tem um `project_id` no SQLite da máquina. A resolução segue:
-
-```
-defaults do código → machine (SQLite) → project_* (mesmo SQLite, por root_path)
-```
-
-`pulse init` e `pulse config init` cadastram o projeto sem agent, model nem
-`permission_policy`: vazio herda da máquina, que é onde o onboarding grava a
-escolha.
-
-Campos por projeto: agent, model, permission_policy, workspace, use_worktree e
-`workflows.*` (override de agent/model por id de workflow — não definem
-pipeline).
-
-Agents do projeto podem sobrescrever ou estender os da máquina (binary, models,
-acp_command).
-
-### Worktree por run
-
-Projeto que é repositório git pode ligar **Worktree** em *Configurações*. Com a
-chave ligada, cada run abre a própria cópia de trabalho:
-
-```
-~/.pulse/worktrees/<slug>     branch  <slug>
-```
-
-O slug confirmado nomeia os dois: a branch fica como foi digitada e a pasta
-troca `/` por `-` (slug `feat/fix-login` → pasta `feat-fix-login`, branch
-`feat/fix-login`). Se outra run já ocupa a pasta, ela ganha o id curto da run
-como sufixo.
-
-A árvore de trabalho do editor fica intocada, duas runs simultâneas param de se
-atropelar, e revisar a entrega de uma run vira um `git diff` de uma branch.
-
-O worktree **fica** quando a run acaba — ele é a entrega. Sai pelo detalhe da
-run no Histórico (tecla `w`) ou junto quando a run é apagada; com mudança não
-commitada dentro, é mantido e o Pulse avisa. A branch sempre fica.
-
-Desligada a chave (o padrão), a run roda na raiz do projeto como sempre. Nos
-dois casos a sessão mostra a branch atual ao lado do modelo.
-
-Ao iniciar uma tarefa (ex.: **Correção rápida**, **Nova spec**), basta a
-**descrição**: `Enter` inicia com a config do projeto, e `Ctrl+J` ou `\` +
-`Enter` quebra linha. Digitar `@` lista os arquivos do projeto (os que o git
-não ignora): o texto após o `@` filtra, `↑`/`↓` escolhem e `Enter` ou `Tab`
-insere o caminho na descrição. Quem quiser mais escolhe **▸ Mais opções** logo abaixo
-(`Tab` + `Enter`, clique ou `Ctrl+O`) e o formulário ganha
-**título**, **slug** (o nome da branch, que acompanha o título até você
-editá-lo) e a **config** — *Auto branch*, *Auto commit* e *Auto PR/MR*. A config
-começa com o que está em *Configurações* e vale só para aquela run; `Tab` muda de
-campo e `Espaço` marca uma opção. O modo escolhido vale para as próximas tarefas
-até fechar o Pulse.
-
-### Workflows
+## Workflows
 
 Um workflow é uma linha em `workflow_defs` mais N em `workflow_steps`, no
 `~/.pulse/pulse.db`. Cada step diz **qual agente** roda, **qual prompt** ele
@@ -160,53 +196,161 @@ loops de fábrica, que aparecem no menu **Nova sessão**:
 | Analisar codebase | Exploração → Documentação (roda direto, sem aprovar) |
 
 Há ainda o loop genérico `default` ("Executar", um step sem pipeline). Ele não
-entra no menu — repassar o prompt cru ao agente é o que se faz no terminal —
-mas continua no banco e em `/api/workflows`, para quem chama o daemon direto.
+entra no menu, mas continua no banco e em `/api/workflows` para quem chama o
+daemon diretamente.
 
-A semeadura é `INSERT OR IGNORE`: quem editou não perde nada no upgrade, e linha
-de fábrica apagada volta na abertura seguinte. Não há tela para editar workflows
-ainda — quem quiser outro pipeline escreve no banco via
-`pulse.store.workflow_defs`.
+Princípios que valem para todo workflow:
 
-O Pulse abre uma sessão ACP **isolada por step** — o agente seguinte recebe só o
-resumo do anterior, não o contexto. É o que permite trocar de runtime entre steps
-e retomar uma run refazendo um step só.
+- **A semeadura é `INSERT OR IGNORE`.** Edições do usuário nunca são sobrescritas
+  no upgrade, e uma linha de fábrica apagada volta na abertura seguinte.
+- **Definição é mutável, estado é imutável.** A run copia rótulo e posição dos
+  steps ao iniciar; editar um workflow nunca reescreve o histórico.
+- **Sem convenção de pasta.** O que o agente escreve fica onde o prompt do step
+  mandar; o Pulse descobre pelos tool-calls do ACP e guarda só o caminho.
 
-O que o agente escreve fica onde o prompt do step mandar; o Pulse descobre pelos
-tool-calls do ACP e guarda só o caminho. Não há convenção de pasta.
+Ainda não há tela para editar workflows: um pipeline novo é escrito no banco via
+`pulse.store.workflow_defs`. Modelo completo em [`docs/workflows.md`](docs/workflows.md).
 
-Modelo completo: [`docs/workflows.md`](docs/workflows.md).
+## Configuração
 
-A resolução por workflow segue: `projeto.workflows[id]` → `global.workflows[id]` →
-`projeto.defaults` → `global.defaults` → padrões do código.
+Cada projeto tem um `project_id` no SQLite da máquina. A configuração efetiva é
+resolvida em camadas:
 
-Veja a config efetiva (inclusive por workflow):
+```
+defaults do código → machine (SQLite) → project_* (mesmo SQLite, por root_path)
+```
+
+Por workflow, a ordem é:
+
+```
+projeto.workflows[id] → global.workflows[id] → projeto.defaults → global.defaults → defaults do código
+```
+
+| Escopo | Campos |
+| --- | --- |
+| Projeto | `agent`, `model`, `permission_policy`, `workspace`, `use_worktree` |
+| Workflow | `workflows.*` — override de agent/model por id de workflow (não definem pipeline) |
+| Agentes | Agentes do projeto sobrescrevem ou estendem os da máquina (`binary`, `models`, `acp_command`) |
+
+`pulse init` e `pulse config init` cadastram o projeto sem agent, model nem
+`permission_policy`: campo vazio herda da máquina, que é onde o onboarding grava
+a escolha.
 
 ```bash
 pulse config show
 pulse config show --workflow default
 ```
 
-## Documentação interna
+## Worktree por run
 
-Como o Pulse funciona hoje (código atual):
+Um projeto que é repositório git pode ligar **Worktree** em *Configurações*. Com
+a chave ligada, cada run abre a própria cópia de trabalho:
 
-- [Armazenamento](docs/armazenamento.md) — o que é persistido e onde
-- [Agentes](docs/agentes.md) — agentes e o loop de execução, passo a passo
-- [Workflows](docs/workflows.md) — workflow como dado: definição, motor e retomada
-- [Logs](docs/logs.md) — ACP bruto vs stream do cockpit
-- [Questions](docs/questions.md) — questionário ` ```text `, `ask_question` e MCP
+```
+~/.pulse/worktrees/<slug>     branch  <slug>
+```
 
-## Comandos
+O slug confirmado nomeia os dois: a branch fica como foi digitada e a pasta troca
+`/` por `-` (slug `feat/fix-login` → pasta `feat-fix-login`, branch
+`feat/fix-login`). Se outra run já ocupa a pasta, ela ganha o id curto da run
+como sufixo.
+
+- A árvore de trabalho do editor fica intocada e runs simultâneas não se atropelam.
+- O worktree **permanece** quando a run acaba — ele é a entrega. Sai pelo detalhe
+  da run no Histórico (tecla `w`) ou junto quando a run é apagada.
+- Um worktree com mudança não commitada é mantido e o Pulse avisa. A branch
+  sempre fica.
+
+Com a chave desligada (o padrão), a run roda na raiz do projeto. Nos dois casos
+a sessão mostra a branch atual ao lado do modelo.
+
+## Daemon e API
+
+```bash
+pulse daemon start|status|stop
+pulse-engine                                  # foreground (= python -m pulse.daemon serve)
+pulse-engine --host 127.0.0.1 --port 8787
+```
+
+Garantias de segurança do listener:
+
+- `--host` aceita apenas `127.0.0.1` ou `localhost`, e a API recusa requests de
+  navegador ([ADR 0003](docs/adr/0003-listeners-locais-recusam-navegador.md)).
+- Por TCP, toda request leva o token do daemon, que muda a cada início
+  ([ADR 0005](docs/adr/0005-tcp-exige-token-do-daemon.md)).
+
+```bash
+curl -H "Authorization: Bearer $(jq -r .token ~/.pulse/daemon.json)" \
+  http://127.0.0.1:8787/api/status
+```
+
+## Referência de comandos
 
 Toda run é iniciada pelo menu interativo do `pulse` — não há subcomando de workflow.
 
+| Comando | Descrição |
+| --- | --- |
+| `pulse` | Welcome + menu interativo (ou wizard no primeiro uso) |
+| `pulse init` | Wizard de onboarding |
+| `pulse init --force` | Reconfigurar |
+| `pulse doctor` | Verificar o ambiente |
+| `pulse doctor --test-acp` | Verificar o ambiente, incluindo teste ACP |
+| `pulse config` | Mostrar a config efetiva (global + projeto) |
+| `pulse config init` | Registrar o projeto atual no SQLite |
+| `pulse daemon start\|status\|stop` | Gerenciar o daemon |
+
+## Documentação
+
+| Documento | Conteúdo |
+| --- | --- |
+| [Arquitetura](ARCHITECTURE.md) | Camadas, fluxos, eventos SSE e glossário |
+| [Armazenamento](docs/armazenamento.md) | O que é persistido e onde |
+| [Agentes](docs/agentes.md) | Agentes e o loop de execução, passo a passo |
+| [Workflows](docs/workflows.md) | Workflow como dado: definição, motor e retomada |
+| [Logs](docs/logs.md) | ACP bruto vs stream do cockpit |
+| [Questions](docs/questions.md) | Questionário ` ```text `, `ask_question` e MCP |
+| [Quality scorecard](docs/quality-scorecard.md) | Avaliação de qualidade do projeto |
+| [ADRs](docs/adr/) | Decisões de arquitetura registradas |
+
+## Desenvolvimento
+
 ```bash
-pulse                  Welcome + menu interativo (ou wizard no primeiro uso)
-pulse init             Wizard de onboarding
-pulse init --force     Reconfigurar
-pulse doctor           Verificar ambiente
-pulse doctor --test-acp Incluir teste ACP
-pulse config           Mostrar config efetiva (global + projeto)
-pulse config init      Registrar o projeto atual no SQLite
+uv sync && pre-commit install
 ```
+
+O mesmo conjunto de checagens roda localmente e no CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+```bash
+pytest --cov                                   # suíte completa + piso de cobertura por branch
+ruff check . && ruff format --check .
+mypy
+vulture                                        # código morto
+lint-imports                                   # contratos de import entre camadas
+deptry .                                       # dependências não usadas, ausentes ou transitivas
+mutmut run && mutmut export-cicd-stats && python scripts/mutation_gate.py --min 80
+```
+
+Além disso, o CI roda a suíte três vezes em ordem aleatória no Python 3.11,
+mede o mutation score dos parsers e executa os scanners de segurança (Bandit,
+Semgrep, pip-audit e Gitleaks). Invariantes de arquitetura — seed de fábrica,
+contrato OpenAPI, contratos de import, tamanho de arquivo, links da documentação —
+são testes em [`tests/architecture/`](tests/architecture/).
+
+## Contribuindo
+
+Contribuições são bem-vindas. Antes de abrir um PR:
+
+1. Leia [`AGENTS.md`](AGENTS.md) — as regras que valem para humanos e agentes.
+2. Faça branch a partir de `main` e use [conventional commits](https://www.conventionalcommits.org/).
+3. Todo comportamento novo ou bug corrigido vem com um teste que falha sem a mudança.
+4. Preencha o [template de PR](.github/pull_request_template.md), apontando o
+   teste que prova cada afirmação.
+
+Questões de segurança: use o kit em
+[`.claude/skills/security-audit/`](.claude/skills/security-audit/SKILL.md) e
+reporte vulnerabilidades em canal privado, não em issue pública.
+
+## Licença
+
+Distribuído sob a licença MIT. Veja [`LICENSE`](LICENSE).
