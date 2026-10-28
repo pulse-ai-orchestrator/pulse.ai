@@ -1,0 +1,35 @@
+name: Sugestão de melhoria
+description: Uma ideia concreta e pequena o bastante para virar um PR.
+labels: ["feat", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideias maiores ou ainda abertas (um runtime novo, uma mudança no motor) rendem mais no [Discussions → Ideas](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions/categories/ideas).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema isso resolve
+      description: Conte a situação em que você sentiu falta disso.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: O que você propõe
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Você gostaria de implementar?
+      options:
+        - Sim, quero abrir o PR
+        - Talvez, com alguma orientação
+        - Não
+    validations:
+      required: true

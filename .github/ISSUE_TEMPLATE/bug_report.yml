@@ -1,0 +1,71 @@
+name: Bug
+description: Algo não funciona como deveria.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar! Dúvidas de uso vão para o [Discussions](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions/categories/q-a).
+        Antes de enviar, procure se já existe uma issue parecida.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: O que aconteceu
+      description: Descreva o comportamento atual e o que você esperava.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      description: Passos exatos, incluindo o workflow usado (ex. Nova spec, Correção rápida).
+      placeholder: |
+        1. pulse
+        2. Nova sessão → Correção rápida
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão do Pulse
+      description: Saída de `pulse --version` ou o commit instalado.
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - cursor
+        - claude
+        - codex
+        - Não se aplica
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Sistema operacional
+      placeholder: macOS 15, Ubuntu 24.04, WSL2…
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Saída do `pulse doctor --test-acp`
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs ou capturas de tela
+      description: Remova chaves de API, tokens e qualquer dado sensível antes de colar.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmações
+      options:
+        - label: Procurei e não encontrei uma issue igual.
+          required: true
+        - label: Removi credenciais e dados sensíveis do que colei aqui.
+          required: true
