@@ -1,5 +1,7 @@
 <div align="center">
 
+[Português](README.md) | [English](README.en.md)
+
 <img src="https://avatars.githubusercontent.com/u/339804102?s=200&v=4" alt="Pulse" width="96" height="96">
 
 # Pulse
