@@ -25,21 +25,16 @@ class TurnResult:
     stop_reason: str = ""
     approved: bool = False
     approval_answers: str = ""
-    answer_rounds: tuple[str, ...] = ()
     turns_exhausted: bool = False
 
     @classmethod
     def parse(cls, raw: JsonObject) -> TurnResult:
-        rounds = raw.get("answerRounds")
         return cls(
             summary=str(raw.get("phaseSummary") or ""),
             outcome=str(raw.get("outcome") or ""),
             stop_reason=str(raw.get("stopReason") or ""),
             approved=bool(raw.get("approved")),
             approval_answers=str(raw.get("approvalAnswers") or ""),
-            answer_rounds=tuple(str(item) for item in rounds if str(item).strip())
-            if isinstance(rounds, list)
-            else (),
             turns_exhausted=bool(raw.get("turnsExhausted")),
         )
 
