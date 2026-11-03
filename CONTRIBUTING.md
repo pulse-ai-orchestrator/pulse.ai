@@ -71,6 +71,10 @@ As regras que mais pegam quem está chegando:
 
 - Use [conventional commits](https://www.conventionalcommits.org/) em inglês,
   no imperativo: `feat(cli): add --json to doctor`, `fix(vcs): …`, `docs: …`.
+  O tipo decide a tag em `main`: `feat` sobe minor, `fix` e `perf` sobem
+  patch, e um parágrafo `BREAKING CHANGE:` marca mudança incompatível. Os
+  demais tipos entram no changelog da próxima tag. Detalhe em
+  [Versões](README.md#versões).
 - Um assunto por commit e por PR. PRs pequenos são revisados mais rápido.
 - Preencha o [template de PR](.github/pull_request_template.md) e aponte o
   teste que prova cada afirmação.

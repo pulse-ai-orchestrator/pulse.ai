@@ -4,12 +4,13 @@ import json
 from collections.abc import Callable
 from typing import Any, TypeAlias
 
+from pulse import __version__
 from pulse.domain.ports import PromptPort
 
 DEFAULT_PROTOCOL_VERSION = "2025-06-18"
 TOOL_NAME = "AskQuestion"
 SERVER_NAME = "pulse-ask"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = __version__
 
 RequestId: TypeAlias = int | str | None
 """A JSON-RPC id; `None` for a notification."""

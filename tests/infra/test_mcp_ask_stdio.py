@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from pulse import __version__
 from pulse.domain.ports import JsonObject, NullPromptPort
 from pulse.mcp import ask_stdio
 from pulse.mcp.ask_bridge import SOCKET_ENV, AskQuestionBridgeServer
@@ -79,9 +80,18 @@ def test_initialize_announces_the_server_and_its_tool_capability(
         "result": {
             "protocolVersion": DEFAULT_PROTOCOL_VERSION,
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "pulse-ask", "version": "0.1.0"},
+            "serverInfo": {"name": "pulse-ask", "version": __version__},
         },
     }
+
+
+def test_initialize_announces_the_stamped_package_version(monkeypatch: pytest.MonkeyPatch):
+    """A release stamps ``pulse.__version__``; the server must read that value, not a copy."""
+    monkeypatch.setattr(ask_stdio, "SERVER_VERSION", "9.9.9")
+
+    [reply] = _serve(monkeypatch, [json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize"})])
+
+    assert reply["result"]["serverInfo"]["version"] == "9.9.9"
 
 
 def test_tools_list_offers_only_the_ask_question_tool(monkeypatch: pytest.MonkeyPatch):
