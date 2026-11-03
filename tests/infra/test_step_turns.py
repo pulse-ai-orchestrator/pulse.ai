@@ -312,6 +312,7 @@ def test_a_cancelled_turn_returns_without_asking_the_questionnaire(connect):
         "approved": False,
         "outcome": "cancelled",
         "phaseSummary": "",
+        "answerRounds": [],
     }
     assert harness.answers.asked == []
     assert harness.agent.calls("session/close") == [{"sessionId": "sess-1"}]
@@ -329,6 +330,7 @@ def test_dismissing_the_questionnaire_cancels_the_phase(connect):
         "approved": False,
         "outcome": "cancelled",
         "phaseSummary": QUESTIONNAIRE,
+        "answerRounds": [],
     }
     assert harness.agent.calls("session/close") == [{"sessionId": "sess-1"}]
 
@@ -360,6 +362,7 @@ def test_skip_or_cancel_answers_end_the_phase_without_continuing(connect, pick, 
         "approved": False,
         "outcome": outcome,
         "phaseSummary": QUESTIONNAIRE,
+        "answerRounds": [],
     }
     assert continuations.calls == []
     assert harness.agent.prompts() == ["draft the plan"]
@@ -422,8 +425,40 @@ def test_an_endless_question_loop_stops_at_the_turn_cap(connect):
     assert len(agent.prompts()) == cap
     assert result["approved"] is False
     assert result["outcome"] == "adjust"
+    assert result["turnsExhausted"] is True
+    assert len(result["answerRounds"]) == cap
+    assert all("→ B) Ajustar" in answers for answers in result["answerRounds"])
     assert result["askQuestionCount"] == cap
     assert agent.calls("session/close") == [{"sessionId": "sess-1"}]
+
+
+def test_the_rounds_that_kept_the_conversation_going_come_back_with_the_phase(connect):
+    """A retry opens a fresh session; these answers keep it from asking again.
+
+    The approval itself is not a decision for a retry to honour.
+    """
+    agent = ScriptedAgent([Turn(QUESTIONNAIRE), Turn(QUESTIONNAIRE), Turn(QUESTIONNAIRE)])
+    harness = connect(agent, AnswerSheet(ADJUST, ADJUST, APPROVE))
+
+    result = _phase(harness, build_continuation=Continuations().phase)
+
+    assert result["approved"] is True
+    assert result["turnsExhausted"] is False
+    assert len(result["answerRounds"]) == 2
+    assert all("→ B) Ajustar" in answers for answers in result["answerRounds"])
+
+
+@pytest.mark.parametrize("last", [None, SKIP, "D) Cancelar"])
+def test_a_phase_ended_by_the_user_keeps_only_the_rounds_before_it(connect, last):
+    """Cancelling or skipping is not an answer a retry should treat as a decision."""
+    agent = ScriptedAgent([Turn(QUESTIONNAIRE), Turn(QUESTIONNAIRE)])
+    harness = connect(agent, AnswerSheet(ADJUST, last))
+
+    result = _phase(harness, build_continuation=Continuations().phase)
+
+    assert result["approved"] is False
+    assert len(result["answerRounds"]) == 1
+    assert "→ B) Ajustar" in result["answerRounds"][0]
 
 
 def test_a_session_without_an_id_fails_the_phase_before_any_turn(connect):

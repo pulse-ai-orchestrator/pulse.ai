@@ -233,6 +233,13 @@ continue ou sobrescreva esses arquivos em vez de criar outros. Assim o mesmo
 artefato não sai duas vezes com nomes diferentes. Uma rodada nova de loop não é
 retry: ela grava arquivos novos de propósito.
 
+O prompt da nova tentativa também traz as respostas que a pessoa deu ao
+questionário nas tentativas anteriores do step (`earlier_answers_block`), como
+decisões já tomadas, para o agente não perguntar tudo de novo. Entram só as
+rodadas que continuaram a conversa; aprovar, cancelar e pular não contam.
+Quando o laço de aprovação esgota `MAX_PHASE_APPROVAL_TURNS`, o menu diz isso
+em vez de "step não aprovado".
+
 ### Sair, voltar e parar
 
 São três coisas diferentes, e só a última toca na run.

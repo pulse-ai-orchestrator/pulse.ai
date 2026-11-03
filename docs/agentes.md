@@ -196,6 +196,8 @@ Este é o ponto onde as camadas se encontram. Em
                               +
                  earlier_attempt_block(arquivos)  (só numa nova tentativa)
                               +
+                 earlier_answers_block(respostas) (só numa nova tentativa)
+                              +
                  guidance_block(orientação)     (só numa nova tentativa)
                               ║
                               ▼
@@ -376,8 +378,14 @@ Até `MAX_PHASE_APPROVAL_TURNS` (12) rodadas:
 5. classify_outcome(respostas)
      ├─ approve            → approved=True, break
      ├─ cancel / skip      → retorna imediatamente
-     └─ adjust / continue  → build_continuation_prompt(...) e volta ao passo 1
+     └─ adjust / continue  → guarda as respostas em answerRounds,
+                             build_continuation_prompt(...) e volta ao passo 1
 ```
+
+Se as 12 rodadas acabam sem aprovação, o resultado volta com
+`turnsExhausted: true` e o menu de retry explica que o limite foi atingido. A
+nova tentativa recebe `answerRounds` de todas as tentativas anteriores no
+`earlier_answers_block`.
 
 O agente pede aprovação num bloco cercado em português — é o bloco
 [`shared/approval.md`](../pulse/store/factory/shared/approval.md), expandido em
@@ -464,7 +472,7 @@ Bloqueio é o último recurso, não o jeito de pedir informação.
 O menu de falha ([`_offer_retry`](../pulse/orchestrator/menus.py)):
 
 ```
-Refazer                      → nova tentativa, mesmo prompt + arquivos já gravados
+Refazer                      → nova tentativa, mesmo prompt + arquivos já gravados + respostas já dadas
 Outro — dizer o que fazer    → ask_text() → guidance_block() no prompt seguinte
 Parar                        → status FAILED, run encerra com exit 1
 ```

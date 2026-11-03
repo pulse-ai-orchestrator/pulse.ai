@@ -74,6 +74,10 @@ def step_failed_title(label: str) -> str:
 # Why a step did not settle, shown under the menu title.
 STEP_CANCELLED = "step cancelado"
 STEP_NOT_APPROVED = "step não aprovado"
+APPROVAL_TURNS_EXHAUSTED = (
+    "o step atingiu o limite de rodadas de perguntas sem chegar à aprovação — "
+    "Refazer abre uma sessão nova que já recebe as respostas dadas"
+)
 NO_APPROVAL_NOR_OUTCOME = "o agente encerrou sem o bloco de aprovação nem um desfecho válido"
 AGENT_DID_NOT_COMPLETE = "o agente não concluiu o step"
 OUTCOME_NOT_DECLARED = (

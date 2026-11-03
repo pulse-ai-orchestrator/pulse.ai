@@ -134,13 +134,19 @@ through as approved.
 - Answering your own question with "the codebase already does X" — the codebase
   shows what *is*, not what the product team wants.
 
-**Batch shape:** follow [user-input.md](user-input.md). At most 2 independent
-questions per batch; dependent questions one at a time. Lead each question with
-a recommended option and a one-line rationale in product terms, so the product
-team can accept it in one keystroke.
+**Batch shape:** follow [user-input.md](user-input.md). Put every question you
+can already see in the batch; hold one back only when its wording depends on an
+answer not given yet. Lead each question with a recommended option and a
+one-line rationale in product terms, so the product team can accept it in one
+keystroke.
 
-There is no cap on the number of rounds. A sixth round of clarification is
-cheaper than a feature built on a guess.
+**Rounds are limited.** Pulse stops a step that keeps asking, and a retry opens a
+fresh session that only knows the files on disk and the answers Pulse hands it.
+Write `PRD.md`, the ledger and `context.md` from the first round and update them
+after every answer. A case that only combines decisions already made follows
+from them: record it as `decided`, naming those decisions, and ask it only when
+they point to different outcomes. Never ask again what the prompt lists as
+already answered or what the files already record as `decided`.
 
 ---
 
@@ -312,15 +318,15 @@ Recommend **Guided**. Honor mid-discussion switches ("go faster", "just decide")
 For each selected area, resolve decisions through CLI batches per [user-input.md](user-input.md) and [ambiguity.md](ambiguity.md):
 
 1. Lead with a recommended option and one-line rationale
-2. Guided: at most 2 independent questions per batch; dependent questions one at a time. Never dump 3+ product questions in one batch
-3. After answers, update the Ambiguity Ledger (`decided`) and continue until the next blocking decision
-4. Keep looping until no area is unresolved. There is no round limit and no "we can settle this later" — an unanswered area means another batch next turn
+2. Guided: every question you can already see goes in the same batch; only a question whose wording depends on a pending answer waits for the next turn
+3. After answers, update the Ambiguity Ledger (`decided`) and `context.md` on disk, then continue until the next blocking decision
+4. Keep looping until no area is unresolved. There is no "we can settle this later" — an unanswered area means another batch next turn. Rounds are limited, so a case that only combines decisions already made is recorded as `decided` from them, not asked
 5. When all areas are resolved, write `context.md` (decisions only — not a questionnaire)
 
 **Question design** (when forming CLI batches — see [user-input.md](user-input.md)):
 
 - Options should be concrete ("Card layout" not "Option A")
-- Each answer should inform the next question
+- Each batch of answers should inform the next batch
 - Include "You decide" as an option when reasonable — captures agent discretion
 
 ### 4. Scope Guardrail (CRITICAL)
