@@ -378,14 +378,15 @@ Até `MAX_PHASE_APPROVAL_TURNS` (12) rodadas:
 5. classify_outcome(respostas)
      ├─ approve            → approved=True, break
      ├─ cancel / skip      → retorna imediatamente
-     └─ adjust / continue  → guarda as respostas em answerRounds,
+     └─ adjust / continue  → guarda as respostas em last_answer_rounds,
                              build_continuation_prompt(...) e volta ao passo 1
 ```
 
 Se as 12 rodadas acabam sem aprovação, o resultado volta com
-`turnsExhausted: true` e o menu de retry explica que o limite foi atingido. A
-nova tentativa recebe `answerRounds` de todas as tentativas anteriores no
-`earlier_answers_block`.
+`turnsExhausted: true` e o menu de retry explica que o limite foi atingido. As
+respostas ficam em `last_answer_rounds` da sessão, e não no resultado, para
+sobreviver também a uma sessão que cai no meio do step. A nova tentativa recebe
+as rodadas de todas as tentativas anteriores no `earlier_answers_block`.
 
 O agente pede aprovação num bloco cercado em português — é o bloco
 [`shared/approval.md`](../pulse/store/factory/shared/approval.md), expandido em
