@@ -225,23 +225,38 @@ def _option_from_payload(option: object) -> tuple[str, str] | None:
     return None
 
 
+_ANSWERS_HEADER = "Respostas coletadas via questionário interativo do Pulse:"
+# Asking one question per round spends the approval loop's turns on a single
+# decision each; a step with many open decisions then hits the turn cap.
+_ANSWERS_FOOTER = (
+    "Continue o fluxo com base nestas respostas. "
+    "Se ainda faltarem decisões, faça no mesmo bloco todas as perguntas que já "
+    "consegue ver, em vez de uma por rodada."
+)
+
+
 def format_questionnaire_answers(
     questionnaire: TextQuestionnaire,
     answers: list[tuple[TextQuestion, str]],
 ) -> str:
-    lines = [
-        "Respostas coletadas via questionário interativo do Pulse:",
-        "",
-    ]
+    lines = [_ANSWERS_HEADER, ""]
     for question, answer in answers:
         lines.append(question.prompt)
         lines.append(f"→ {answer}")
         lines.append("")
-    lines.append(
-        "Continue o fluxo com base nestas respostas. "
-        "Se ainda faltarem campos, invoque a ferramenta `AskQuestion` (uma pergunta por vez)."
-    )
+    lines.append(_ANSWERS_FOOTER)
     return "\n".join(lines)
+
+
+def answered_questions(answers_text: str) -> str:
+    """The question and answer lines of [format_questionnaire_answers], without its frame.
+
+    A retry repeats every earlier round; the header and the closing instruction
+    would repeat with each of them.
+    """
+    frame = {_ANSWERS_HEADER, _ANSWERS_FOOTER}
+    kept = [line for line in answers_text.splitlines() if line.strip() not in frame]
+    return "\n".join(kept).strip()
 
 
 def _has_question_structure(block: str) -> bool:

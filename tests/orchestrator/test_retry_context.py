@@ -1,8 +1,8 @@
-"""A retried step learns which files its failed attempt already wrote.
+"""A retried step learns which files its failed attempt wrote and what the user answered.
 
 A retry opens a fresh ACP session: without this, the agent repeats the step from
-scratch and may write the same artifact under another name, leaving two
-versions of it in the run (issue #62).
+scratch, may write the same artifact under another name, leaving two versions
+of it in the run (issue #62), and asks the user the same questions again.
 """
 
 from __future__ import annotations
@@ -11,7 +11,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from pulse.domain import run as run_model
-from pulse.orchestrator.agent_text import earlier_attempt_block
+from pulse.orchestrator import wording
+from pulse.orchestrator.agent_text import earlier_answers_block, earlier_attempt_block
+from pulse.replies.text_questionnaire import (
+    TextQuestion,
+    TextQuestionnaire,
+    format_questionnaire_answers,
+)
 from tests.conftest import make_workflow
 from tests.fakes import FakeAgentSession
 from tests.orchestrator.harness import approved_turn, delivered_turn
@@ -136,6 +142,92 @@ def _repeating() -> dict[str, object]:
         "stopReason": "end_turn",
         "phaseSummary": "falta corrigir\n\n```pulse:outcome\nstatus: done\nnext: repeat\n```",
     }
+
+
+_ROUND_1 = format_questionnaire_answers(
+    TextQuestionnaire(title="T", questions=(TextQuestion("q1", "1. Água e água são iguais?"),)),
+    [(TextQuestion("q1", "1. Água e água são iguais?"), "A) Sim")],
+)
+_ROUND_2 = format_questionnaire_answers(
+    TextQuestionnaire(title="T", questions=(TextQuestion("q1", "1. Ordem da lista?"),)),
+    [(TextQuestion("q1", "1. Ordem da lista?"), "B) Alfabética")],
+)
+_ANSWERS_HEADING = earlier_answers_block([_ROUND_1]).strip().splitlines()[0]
+
+
+def _asked_until_the_cap(*rounds: str) -> dict[str, object]:
+    return {
+        "approved": False,
+        "outcome": "continue",
+        "approvalAnswers": rounds[-1],
+        "answerRounds": list(rounds),
+        "turnsExhausted": True,
+    }
+
+
+def test_a_retry_carries_the_answers_the_user_already_gave(wired, tmp_path: Path):
+    """Without them the fresh session asks the same questions again (issue: PRD loop)."""
+    make_workflow("demo", steps=[("spec", "Spec")])
+    runner = FakeAgentSession([_asked_until_the_cap(_ROUND_1, _ROUND_2), approved_turn()])
+    runner.prompts.choice = "retry"
+
+    code = wired.run(runner, workflow_id="demo", user_prompt="x")
+
+    assert code == 0
+    first, retry = runner.sent
+    assert _ANSWERS_HEADING not in first
+    assert earlier_answers_block([_ROUND_1, _ROUND_2]) in retry
+    assert "→ A) Sim" in retry
+    assert "→ B) Alfabética" in retry
+
+
+def test_answers_pile_up_across_every_failed_attempt(wired, tmp_path: Path):
+    make_workflow("demo", steps=[("spec", "Spec")])
+    runner = FakeAgentSession(
+        [_asked_until_the_cap(_ROUND_1), _asked_until_the_cap(_ROUND_2), approved_turn()]
+    )
+    runner.prompts.choice = "retry"
+
+    wired.run(runner, workflow_id="demo", user_prompt="x")
+
+    _first, second, third = runner.sent
+    assert earlier_answers_block([_ROUND_1]) in second
+    assert earlier_answers_block([_ROUND_1, _ROUND_2]) in third
+
+
+def test_hitting_the_turn_cap_says_so_in_the_retry_menu(wired, tmp_path: Path):
+    """`step não aprovado` hid that the agent ran out of rounds, not that the user refused."""
+    make_workflow("demo", steps=[("spec", "Spec")])
+    runner = FakeAgentSession([_asked_until_the_cap(_ROUND_1)])
+
+    code = wired.run(runner, workflow_id="demo", user_prompt="x")
+
+    assert code == 1
+    assert runner.prompts.prompts == [wording.APPROVAL_TURNS_EXHAUSTED]
+
+
+def test_a_refused_approval_still_reads_as_not_approved(wired, tmp_path: Path):
+    make_workflow("demo", steps=[("spec", "Spec")])
+    refused = {"approved": False, "outcome": "continue", "approvalAnswers": _ROUND_1}
+    runner = FakeAgentSession([refused])
+
+    wired.run(runner, workflow_id="demo", user_prompt="x")
+
+    assert runner.prompts.prompts == [wording.STEP_NOT_APPROVED]
+
+
+def test_the_answers_block_keeps_each_round_without_the_frame():
+    block = earlier_answers_block([_ROUND_1, _ROUND_2])
+
+    assert "1. Água e água são iguais?\n→ A) Sim\n\n1. Ordem da lista?\n→ B) Alfabética\n" in block
+    assert "Respostas coletadas" not in block
+    assert "não pergunte\nde novo" in block
+
+
+def test_no_answers_means_no_answers_block():
+    assert earlier_answers_block([]) == ""
+    header_only = "Respostas coletadas via questionário interativo do Pulse:"
+    assert earlier_answers_block(["", header_only]) == ""
 
 
 def test_the_block_names_each_file_and_asks_to_reuse_them():

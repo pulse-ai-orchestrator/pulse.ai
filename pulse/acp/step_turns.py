@@ -79,7 +79,9 @@ class StepTurns:
         next_prompt = initial_prompt
         phase_summary = ""
         answers_text = ""
+        answer_rounds: list[str] = []
         approved = False
+        exhausted = False
         outcome: str = ApprovalOutcome.UNKNOWN
         phase_result: dict[str, Any] = {}
 
@@ -92,6 +94,7 @@ class StepTurns:
                     phase_result["approved"] = False
                     phase_result["outcome"] = CANCELLED
                     phase_result["phaseSummary"] = phase_summary
+                    phase_result["answerRounds"] = answer_rounds
                     return phase_result
 
                 phase_summary = self._stream.agent_text()
@@ -104,6 +107,7 @@ class StepTurns:
                         "approved": False,
                         "outcome": CANCELLED,
                         "phaseSummary": phase_summary,
+                        "answerRounds": answer_rounds,
                     }
 
                 answers_text = answers
@@ -122,8 +126,10 @@ class StepTurns:
                         "approved": False,
                         "outcome": outcome,
                         "phaseSummary": phase_summary,
+                        "answerRounds": answer_rounds,
                     }
 
+                answer_rounds.append(answers_text)
                 if build_continuation is None:
                     break
                 next_prompt = build_continuation(
@@ -131,11 +137,15 @@ class StepTurns:
                     questionnaire_answers=answers_text,
                     outcome=outcome,
                 )
+            else:
+                exhausted = True
 
             phase_result["approved"] = approved
             phase_result["outcome"] = outcome
             phase_result["phaseSummary"] = phase_summary
             phase_result["approvalAnswers"] = answers_text
+            phase_result["answerRounds"] = answer_rounds
+            phase_result["turnsExhausted"] = exhausted
             phase_result["askQuestionCount"] = self.ask_question_count
             return phase_result
         finally:

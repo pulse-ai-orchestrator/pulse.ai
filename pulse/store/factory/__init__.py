@@ -457,6 +457,46 @@ def drop_validation_from_implement(connection: sqlite3.Connection) -> None:
     )
 
 
+UNCAPPED_STEP_MARK = "There is no cap on rounds."
+UNCAPPED_AGENT_MARK = "There is no cap on the number of rounds."
+
+
+def refresh_uncapped_clarify_loops(connection: sqlite3.Connection) -> None:
+    """Reset rows that still tell the agent its questions have no round limit.
+
+    The approval loop stops at a turn cap; an agent told otherwise asked one
+    question per round, hit the cap, and its retry asked everything again. `seed`
+    never rewrites rows, so a factory row still carrying the old sentence is reset
+    to the factory text, other edits in it included; a row without the sentence
+    belongs to the user and stays. Runs on every open: exits early via `SELECT`.
+    """
+    steps = connection.execute(
+        "SELECT workflow_id, step_id FROM workflow_steps WHERE instr(prompt_template, ?) > 0",
+        (UNCAPPED_STEP_MARK,),
+    ).fetchall()
+    agents = connection.execute(
+        "SELECT id FROM agent_defs WHERE instr(instructions, ?) > 0",
+        (UNCAPPED_AGENT_MARK,),
+    ).fetchall()
+    if not steps and not agents:
+        return
+
+    factory_steps = {(item.id, step.id()): step for item in WORKFLOWS for step in item.steps}
+    for row in steps:
+        step = factory_steps.get((row[0], row[1]))
+        if step is None:
+            continue
+        connection.execute(
+            "UPDATE workflow_steps SET prompt_template = ? WHERE workflow_id = ? AND step_id = ?",
+            (load_phase(step.agent_id, step.phase or "PHASE"), row[0], row[1]),
+        )
+    instructions = {agent.id: agent.instructions for agent in load_agents()}
+    connection.executemany(
+        "UPDATE agent_defs SET instructions = ? WHERE id = ?",
+        [(instructions[row[0]], row[0]) for row in agents if row[0] in instructions],
+    )
+
+
 def _count_present(
     connection: sqlite3.Connection, table: str, column: str, ids: tuple[str, ...]
 ) -> int:

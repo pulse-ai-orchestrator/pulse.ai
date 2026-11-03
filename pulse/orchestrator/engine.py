@@ -36,6 +36,7 @@ from pulse.orchestrator.agent_text import (
     build_continuation_prompt,
     build_outcome_reminder_prompt,
     build_unblock_prompt,
+    earlier_answers_block,
     earlier_attempt_block,
     guidance_block,
     outcome_protocol,
@@ -258,6 +259,7 @@ def _run_step(
 ) -> tuple[int, LoopSignal | None]:
     """`(exit code, loop signal)`; how the step ended is in `record.status`."""
     guidance = ""
+    answered: list[str] = []
     while True:
         signal, reason = _attempt_step(
             wiring,
@@ -265,6 +267,7 @@ def _run_step(
             step=step,
             record=record,
             guidance=guidance,
+            answered=answered,
             item=item,
             may_close=may_close,
         )
@@ -299,11 +302,16 @@ def _attempt_step(
     step: StepDef,
     record: StepRecord,
     guidance: str,
+    answered: list[str],
     item: Item | None = None,
     may_close: bool = False,
 ) -> tuple[LoopSignal | None, str]:
     """`(loop signal, reason)`. How the attempt ended is the step's status;
-    `reason` explains a failure or a block to the person deciding what next."""
+    `reason` explains a failure or a block to the person deciding what next.
+
+    `answered` holds the questionnaire answers of the earlier attempts of this
+    step; this attempt's answers are added to it for the next retry.
+    """
     earlier = _earlier_attempt_files(wiring, run, record)
     run.start_step(record.step_id)
     wiring.runs.save(run)
@@ -313,7 +321,14 @@ def _attempt_step(
     before = snapshot_if_committing(wiring, run, step)
     try:
         prompt_text = _step_prompt(
-            wiring, run, step, profile, item=item, guidance=guidance, earlier=earlier
+            wiring,
+            run,
+            step,
+            profile,
+            item=item,
+            guidance=guidance,
+            earlier=earlier,
+            answered=answered,
         )
     except TemplateError as error:
         _fail(wiring, run, record)
@@ -327,6 +342,7 @@ def _attempt_step(
         return None, _session_error(error)
 
     turn = TurnResult.parse(raw)
+    answered.extend(turn.answer_rounds)
     record.record_reply(
         session_id=wiring.session.last_session_id, summary=format_summary(turn.summary)
     )
@@ -352,6 +368,7 @@ def _step_prompt(
     item: Item | None,
     guidance: str,
     earlier: list[str],
+    answered: list[str],
 ) -> str:
     """The step's template rendered, wrapped in the agent's instructions and Pulse's protocol."""
     prompt_text = render(step.prompt_template, _template_values(wiring, run, step, item))
@@ -359,6 +376,7 @@ def _step_prompt(
     if profile.instructions:
         prompt_text = f"{profile.instructions}\n\n---\n\n{prompt_text}"
     prompt_text += earlier_attempt_block(earlier)
+    prompt_text += earlier_answers_block(answered)
     prompt_text += guidance_block(guidance)
     if step.declares_outcome:
         prompt_text += outcome_protocol(ask_commit=bool(wiring.atomic_commits and step.commit_type))
@@ -441,6 +459,8 @@ def _judge_turn(
 def _unfinished_reason(step: StepDef, turn: TurnResult) -> str | None:
     """Why the turn does not count as finished: not approved, or not ended cleanly."""
     if step.requires_approval and not turn.approved:
+        if turn.turns_exhausted:
+            return wording.APPROVAL_TURNS_EXHAUSTED
         if not turn.has_approval_answers:
             return wording.NO_APPROVAL_NOR_OUTCOME
         return wording.STEP_NOT_APPROVED
