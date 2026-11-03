@@ -6,7 +6,12 @@ import sys
 from typing import Any
 
 from pulse.mcp.ask_bridge import SOCKET_ENV, request_ask_question_via_socket
-from pulse.mcp.ask_protocol import DEFAULT_PROTOCOL_VERSION, RequestId, tool_definition
+from pulse.mcp.ask_protocol import (
+    DEFAULT_PROTOCOL_VERSION,
+    SERVER_VERSION,
+    RequestId,
+    tool_definition,
+)
 
 _TOOL_NAME = tool_definition()["name"]
 
@@ -24,7 +29,7 @@ def _handle_initialize(request_id: RequestId) -> None:
             "result": {
                 "protocolVersion": DEFAULT_PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "pulse-ask", "version": "0.1.0"},
+                "serverInfo": {"name": "pulse-ask", "version": SERVER_VERSION},
             },
         }
     )
