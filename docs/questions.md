@@ -147,8 +147,12 @@ Tipos do dock: `select`, `multi_select`, `text`, `confirm`.
 
 ### Steps com aprovação
 
-Até **12 turns** (`MAX_PHASE_APPROVAL_TURNS`). Depois de cada turn, o Pulse
-classifica as linhas `→ …` (`pulse/replies/approval.py`):
+Até **12 turns** (`MAX_PHASE_APPROVAL_TURNS`). Esgotados os turns sem
+aprovação, o step cai no menu de retry com esse motivo, e a nova tentativa
+recebe as respostas já dadas. O texto de respostas que volta ao agente pede
+que ele faça no mesmo bloco todas as perguntas que já enxerga, em vez de uma
+por rodada. Depois de cada turn, o Pulse classifica as linhas `→ …`
+(`pulse/replies/approval.py`):
 
 | Outcome | Gatilho (texto) | Efeito |
 | --- | --- | --- |

@@ -15,6 +15,7 @@ from hypothesis import strategies as st
 from pulse.replies.text_questionnaire import (
     TextQuestion,
     TextQuestionnaire,
+    answered_questions,
     extract_questionnaire_block,
     format_questionnaire_answers,
     parse_text_questionnaire,
@@ -244,8 +245,44 @@ def test_answers_are_formatted_as_prompt_then_arrow_answer() -> None:
         "→ Cloud\n"
         "\n"
         "Continue o fluxo com base nestas respostas. "
-        "Se ainda faltarem campos, invoque a ferramenta `AskQuestion` (uma pergunta por vez)."
+        "Se ainda faltarem decisões, faça no mesmo bloco todas as perguntas que já "
+        "consegue ver, em vez de uma por rodada."
     )
+
+
+def test_formatted_answers_ask_for_the_next_questions_in_one_batch() -> None:
+    """One question per round spends the approval loop's turn cap on one decision each."""
+    text = format_questionnaire_answers(TextQuestionnaire(title="T", questions=()), [])
+
+    assert "uma pergunta por vez" not in text
+    assert "no mesmo bloco todas as perguntas" in text
+
+
+def test_answered_questions_drop_the_frame_and_keep_every_pair() -> None:
+    questionnaire = TextQuestionnaire(title="T", questions=(STACK, DEPLOY))
+    text = format_questionnaire_answers(questionnaire, [(STACK, "A) Python"), (DEPLOY, "Cloud")])
+
+    assert answered_questions(text) == ("1. Which stack?\n→ A) Python\n\n2. Deploy where?\n→ Cloud")
+
+
+@pytest.mark.parametrize(
+    ("answers_text", "expected"),
+    [
+        ("", ""),
+        ("  \n\n  ", ""),
+        ("1. Free text?\n→ Outro — tanto faz\n", "1. Free text?\n→ Outro — tanto faz"),
+        (
+            "  Respostas coletadas via questionário interativo do Pulse:  \n1. Q?\n→ A",
+            "1. Q?\n→ A",
+        ),
+        (
+            "Respostas coletadas via questionário interativo do Pulse: extra\n1. Q?\n→ A",
+            "Respostas coletadas via questionário interativo do Pulse: extra\n1. Q?\n→ A",
+        ),
+    ],
+)
+def test_answered_questions_drop_only_whole_frame_lines(answers_text: str, expected: str) -> None:
+    assert answered_questions(answers_text) == expected
 
 
 def test_formatted_answers_split_back_into_question_and_answer_pairs() -> None:

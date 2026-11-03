@@ -6,6 +6,7 @@ Everything else in the prompt comes from the user (`workflow_steps.prompt_templa
 from __future__ import annotations
 
 from pulse.replies.approval import ApprovalOutcome, format_summary
+from pulse.replies.text_questionnaire import answered_questions
 
 _CONTINUATION = """\
 ## Continuação do step `{step_id}`
@@ -174,4 +175,23 @@ def earlier_attempt_block(paths: list[str]) -> str:
         f"{listed}\n"
         "Continue ou sobrescreva esses arquivos em vez de criar novos com outro\n"
         "nome ou em outra pasta.\n"
+    )
+
+
+def earlier_answers_block(rounds: list[str]) -> str:
+    """What the user already answered in the failed attempts of this step.
+
+    A retry runs in a fresh session that remembers nothing; without this the
+    agent asks the same questions again, and the user may answer them differently.
+    """
+    answered = [text for text in (answered_questions(item) for item in rounds) if text]
+    if not answered:
+        return ""
+    listed = "\n\n".join(answered)
+    return (
+        "\n\n## Respostas que a pessoa já deu neste step\n\n"
+        "Uma tentativa anterior deste step parou antes da aprovação. Cada resposta\n"
+        "abaixo é uma decisão tomada: registre-a nos arquivos do step e não pergunte\n"
+        "de novo o que já está respondido. Pergunte só o que continua em aberto.\n\n"
+        f"{listed}\n"
     )

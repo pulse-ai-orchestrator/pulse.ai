@@ -409,6 +409,7 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         factory.drop_approval_from_unattended_steps(connection)
         factory.inherit_policy_on_default_agent(connection)
         factory.drop_validation_from_implement(connection)
+        factory.refresh_uncapped_clarify_loops(connection)
     connection.commit()
     return connection
 
