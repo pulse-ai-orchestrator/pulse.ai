@@ -1,0 +1,109 @@
+name: Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Branch to release into main
+        required: true
+        default: develop
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: main
+  RELEASE_PREFIX: release/
+  PYTHON_VERSION: "3.14"
+  SEMANTIC_RELEASE_VERSION: "10.7.0"
+
+jobs:
+  open:
+    name: open PR into main
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_BRANCH: ${{ inputs.source }}
+    steps:
+      - name: Reuse an open release PR
+        id: existing
+        run: |
+          url=$(gh pr list --base "$TARGET_BRANCH" --state open --json url,headRefName \
+            --jq "[.[] | select(.headRefName | startswith(\"$RELEASE_PREFIX\"))][0].url // \"\"")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          if [ -n "$url" ]; then
+            echo "::notice title=Release PR already open::$url"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.existing.outputs.url == ''
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        if: steps.existing.outputs.url == ''
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Compute the next tag
+        id: version
+        if: steps.existing.outputs.url == ''
+        run: |
+          source_sha=$(git rev-parse "origin/$SOURCE_BRANCH")
+          git log --no-merges --format='- %s (%h)' "origin/$TARGET_BRANCH..$source_sha" > "$RUNNER_TEMP/commits.md"
+          git -c user.name=release-pr -c user.email=release-pr@users.noreply.github.com \
+            merge --no-ff --no-edit "$source_sha"
+          psr=(uvx --from "python-semantic-release==$SEMANTIC_RELEASE_VERSION" semantic-release)
+          next=$("${psr[@]}" version --print-tag)
+          last=$("${psr[@]}" version --print-last-released-tag || true)
+          if [ -z "$next" ] || [ "$next" = "$last" ]; then
+            echo "::notice title=Nothing to release::$SOURCE_BRANCH has no commit that bumps the version over ${last:-the first release}"
+            exit 0
+          fi
+          echo "tag=$next" >> "$GITHUB_OUTPUT"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Create the release branch
+        if: steps.version.outputs.tag != ''
+        env:
+          RELEASE_BRANCH: ${{ env.RELEASE_PREFIX }}${{ steps.version.outputs.tag }}
+          SOURCE_SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          if gh api "repos/$GH_REPO/git/ref/heads/$RELEASE_BRANCH" --silent 2>/dev/null; then
+            echo "::error title=Release branch exists::$RELEASE_BRANCH already exists; delete it or release from it"
+            exit 1
+          fi
+          gh api "repos/$GH_REPO/git/refs" -f ref="refs/heads/$RELEASE_BRANCH" -f sha="$SOURCE_SHA" --silent
+
+      - name: Open the release PR
+        if: steps.version.outputs.tag != ''
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_BRANCH: ${{ env.RELEASE_PREFIX }}${{ steps.version.outputs.tag }}
+        run: |
+          {
+            echo "Merging this PR into \`$TARGET_BRANCH\` releases **$RELEASE_TAG**."
+            echo
+            echo "## Commits"
+            echo
+            cat "$RUNNER_TEMP/commits.md"
+          } > "$RUNNER_TEMP/body.md"
+          url=$(gh pr create \
+            --base "$TARGET_BRANCH" \
+            --head "$RELEASE_BRANCH" \
+            --title "chore(release): $RELEASE_TAG" \
+            --body-file "$RUNNER_TEMP/body.md")
+          echo "::notice title=Release PR opened::$url"
+          echo "[$RELEASE_TAG]($url)" >> "$GITHUB_STEP_SUMMARY"
