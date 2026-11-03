@@ -208,7 +208,7 @@ class AgentSession(Protocol):
 
         Kept when the session fails mid-step, so a retry still hears them.
         """
-        ...
+        pass
 
     def bind_run(self, run_id: str, waits: UserWaitListener) -> None: ...
 
