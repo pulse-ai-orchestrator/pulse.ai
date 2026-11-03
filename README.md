@@ -351,26 +351,26 @@ são testes em [`tests/architecture/`](tests/architecture/).
 Um merge em `main` que passa no [CI](.github/workflows/ci.yml) dispara o
 [workflow de release](.github/workflows/release.yml). Ele lê os
 [conventional commits](https://www.conventionalcommits.org/) desde a tag
-anterior. Quando essa faixa tem mudança publicada, o workflow grava a versão
-em `pyproject.toml` e `pulse/__init__.py`, gera o `CHANGELOG.md` com todos os
-commits da faixa e publica a tag `vX.Y.Z` mais o
-[GitHub Release](https://github.com/pulse-ai-orchestrator/pulse.ai/releases).
-O release leva o wheel, o sdist, o SBOM CycloneDX e o `SHA256SUMS`.
+anterior. Quando essa faixa tem mudança publicada, o workflow cria a tag
+`vX.Y.Z` no commit que o CI aprovou e publica o
+[GitHub Release](https://github.com/pulse-ai-orchestrator/pulse.ai/releases)
+com todos os commits da faixa nas notas. O release leva o wheel, o sdist, o
+SBOM CycloneDX e o `SHA256SUMS`.
+
+Nenhum commit volta para `main`: a versão do pacote vem da tag, lida no build
+pelo [setuptools-scm](https://setuptools-scm.readthedocs.io/). Fora de uma
+tag, o build sai como versão de desenvolvimento (`0.2.1.devN+g<sha>`).
 
 | Commit | Efeito na versão `0.y.z` |
 | --- | --- |
 | `feat` | sobe o minor (`0.2.0`) |
 | `fix`, `perf` | sobe o patch (`0.1.1`) |
 | corpo com um parágrafo `BREAKING CHANGE:` | sobe o minor |
-| `build`, `chore`, `ci`, `docs`, `style`, `refactor`, `test` | entram no changelog da próxima tag |
+| `build`, `chore`, `ci`, `docs`, `style`, `refactor`, `test` | entram nas notas da próxima tag |
 
-Commits que o parser não reconhece aparecem na seção Unknown do mesmo
-changelog. O commit `chore(release):` que o próprio workflow cria fica de
-fora. Com `major_on_zero = true` em `pyproject.toml`, a próxima mudança
+Commits que o parser não reconhece aparecem na seção Unknown das mesmas
+notas. Com `major_on_zero = true` em `pyproject.toml`, a próxima mudança
 incompatível publica `1.0.0`.
-
-A branch `main` precisa permitir que `github-actions[bot]` envie esse commit
-e a tag. Sem essa permissão o job falha ao publicar e nenhuma tag é criada.
 
 ## Comunidade
 
