@@ -1369,7 +1369,7 @@ wheels = [
 ]
 
 [[package]]
-name = "pulse"
+name = "pulse-orchestrator"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

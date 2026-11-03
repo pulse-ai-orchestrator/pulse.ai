@@ -12,4 +12,4 @@ import pulse
 
 
 def test_package_version_is_the_version_the_build_derived_from_the_tag() -> None:
-    assert pulse.__version__ == metadata.version("pulse")
+    assert pulse.__version__ == metadata.version("pulse-orchestrator")

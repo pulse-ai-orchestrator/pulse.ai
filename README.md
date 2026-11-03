@@ -106,17 +106,20 @@ Camadas, fluxos e glossário: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - Node.js 18+ (`npx`) no PATH, para os runtimes `claude` e `codex`
 
 ```bash
-pipx install git+https://github.com/pulse-ai-orchestrator/pulse.ai.git
+pipx install pulse-orchestrator
 ```
 
 O pipx instala o Pulse num ambiente isolado e coloca os comandos `pulse` e
-`pulse-engine` no PATH.
+`pulse-engine` no PATH. Cada release publicada no
+[PyPI](https://pypi.org/project/pulse-orchestrator/) corresponde a uma tag
+`vX.Y.Z` deste repositório.
 
 | Ação | Comando |
 | --- | --- |
-| Atualizar | `pipx upgrade pulse` |
-| Fixar uma release ou uma branch | `pipx install git+https://github.com/pulse-ai-orchestrator/pulse.ai.git@vX.Y.Z` |
-| Desinstalar | `pipx uninstall pulse` |
+| Atualizar para a última release | `pipx upgrade pulse-orchestrator` |
+| Fixar uma release | `pipx install pulse-orchestrator==X.Y.Z` |
+| Instalar uma branch | `pipx install git+https://github.com/pulse-ai-orchestrator/pulse.ai.git@<branch>` |
+| Desinstalar | `pipx uninstall pulse-orchestrator` |
 
 Para desenvolver no próprio Pulse, instale a partir do clone em modo editável:
 
@@ -348,6 +351,11 @@ são testes em [`tests/architecture/`](tests/architecture/).
 
 ## Versões
 
+O [Release PR](.github/workflows/release-pr.yml), acionado à mão em Actions,
+calcula a próxima tag e abre um PR da `develop` para `main` a partir da branch
+`release/vX.Y.Z`. Faça o merge dele com merge commit, não squash, para que os
+conventional commits cheguem a `main`.
+
 Um merge em `main` que passa no [CI](.github/workflows/ci.yml) dispara o
 [workflow de release](.github/workflows/release.yml). Ele lê os
 [conventional commits](https://www.conventionalcommits.org/) desde a tag
@@ -355,7 +363,8 @@ anterior. Quando essa faixa tem mudança publicada, o workflow cria a tag
 `vX.Y.Z` no commit que o CI aprovou e publica o
 [GitHub Release](https://github.com/pulse-ai-orchestrator/pulse.ai/releases)
 com todos os commits da faixa nas notas. O release leva o wheel, o sdist, o
-SBOM CycloneDX e o `SHA256SUMS`.
+SBOM CycloneDX e o `SHA256SUMS`, e o mesmo wheel e sdist vão para o
+[PyPI](https://pypi.org/project/pulse-orchestrator/) por Trusted Publishing.
 
 Nenhum commit volta para `main`: a versão do pacote vem da tag, lida no build
 pelo [setuptools-scm](https://setuptools-scm.readthedocs.io/). Fora de uma

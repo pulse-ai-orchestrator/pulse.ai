@@ -3,7 +3,7 @@ requires = ["setuptools>=77", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pulse"
+name = "pulse-orchestrator"
 dynamic = ["version"]
 description = "Terminal-first orchestrator for AI agent workflows"
 readme = "README.md"
