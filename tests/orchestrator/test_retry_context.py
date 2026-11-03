@@ -181,6 +181,29 @@ def test_a_retry_carries_the_answers_the_user_already_gave(wired, tmp_path: Path
     assert "→ B) Alfabética" in retry
 
 
+def test_a_session_that_crashes_mid_step_still_hands_its_answers_to_the_retry(
+    wired, tmp_path: Path
+):
+    """A timeout after many answered rounds must not make the user answer them again."""
+    make_workflow("demo", steps=[("spec", "Spec")])
+
+    def answered_then_crashed(_step_id: str) -> None:
+        if not runner.sent[1:]:
+            runner.last_answer_rounds = (_ROUND_1,)
+
+    runner = FakeAgentSession(
+        [RuntimeError("o processo do agente encerrou"), approved_turn()],
+        before_turn=answered_then_crashed,
+    )
+    runner.prompts.choice = "retry"
+
+    code = wired.run(runner, workflow_id="demo", user_prompt="x")
+
+    assert code == 0
+    _first, retry = runner.sent
+    assert earlier_answers_block([_ROUND_1]) in retry
+
+
 def test_answers_pile_up_across_every_failed_attempt(wired, tmp_path: Path):
     make_workflow("demo", steps=[("spec", "Spec")])
     runner = FakeAgentSession(

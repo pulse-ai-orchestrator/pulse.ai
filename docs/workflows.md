@@ -356,7 +356,8 @@ perguntas de novo. Se o step esgotou o limite de rodadas de perguntas, o menu
 diz isso.
 
 Queda de sessão (timeout, processo do agente morto) cai no mesmo menu: é falha
-de tentativa, não fim de run. Antes de refazer, o processo ACP é reerguido.
+de tentativa, não fim de run. Antes de refazer, o processo ACP é reerguido, e a
+nova tentativa recebe as respostas dadas antes da queda.
 O prazo de `session/prompt` conta **silêncio**, não duração: cada linha vinda do
 agente o renova, e pergunta aberta na tela não gasta o relógio.
 

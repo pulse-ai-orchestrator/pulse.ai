@@ -51,6 +51,7 @@ class Turn:
 
     text: str = ""
     stop_reason: str = "end_turn"
+    error: str = ""
 
 
 class _Stdin:
@@ -123,6 +124,9 @@ class ScriptedAgent:
 
     def _play_turn(self, message: dict[str, Any]) -> None:
         turn = self._turns.popleft()
+        if turn.error:
+            self._emit({"id": message["id"], "error": {"message": turn.error}})
+            return
         if turn.text:
             content = {"type": "text", "text": turn.text}
             chunk = {"sessionUpdate": "agent_message_chunk", "content": content}
@@ -312,7 +316,6 @@ def test_a_cancelled_turn_returns_without_asking_the_questionnaire(connect):
         "approved": False,
         "outcome": "cancelled",
         "phaseSummary": "",
-        "answerRounds": [],
     }
     assert harness.answers.asked == []
     assert harness.agent.calls("session/close") == [{"sessionId": "sess-1"}]
@@ -330,7 +333,6 @@ def test_dismissing_the_questionnaire_cancels_the_phase(connect):
         "approved": False,
         "outcome": "cancelled",
         "phaseSummary": QUESTIONNAIRE,
-        "answerRounds": [],
     }
     assert harness.agent.calls("session/close") == [{"sessionId": "sess-1"}]
 
@@ -362,8 +364,8 @@ def test_skip_or_cancel_answers_end_the_phase_without_continuing(connect, pick, 
         "approved": False,
         "outcome": outcome,
         "phaseSummary": QUESTIONNAIRE,
-        "answerRounds": [],
     }
+    assert harness.runner.last_answer_rounds == ()
     assert continuations.calls == []
     assert harness.agent.prompts() == ["draft the plan"]
 
@@ -426,13 +428,13 @@ def test_an_endless_question_loop_stops_at_the_turn_cap(connect):
     assert result["approved"] is False
     assert result["outcome"] == "adjust"
     assert result["turnsExhausted"] is True
-    assert len(result["answerRounds"]) == cap
-    assert all("→ B) Ajustar" in answers for answers in result["answerRounds"])
+    assert len(harness.runner.last_answer_rounds) == cap
+    assert all("→ B) Ajustar" in answers for answers in harness.runner.last_answer_rounds)
     assert result["askQuestionCount"] == cap
     assert agent.calls("session/close") == [{"sessionId": "sess-1"}]
 
 
-def test_the_rounds_that_kept_the_conversation_going_come_back_with_the_phase(connect):
+def test_the_rounds_that_kept_the_conversation_going_stay_on_the_runner(connect):
     """A retry opens a fresh session; these answers keep it from asking again.
 
     The approval itself is not a decision for a retry to honour.
@@ -444,8 +446,8 @@ def test_the_rounds_that_kept_the_conversation_going_come_back_with_the_phase(co
 
     assert result["approved"] is True
     assert result["turnsExhausted"] is False
-    assert len(result["answerRounds"]) == 2
-    assert all("→ B) Ajustar" in answers for answers in result["answerRounds"])
+    assert len(harness.runner.last_answer_rounds) == 2
+    assert all("→ B) Ajustar" in answers for answers in harness.runner.last_answer_rounds)
 
 
 @pytest.mark.parametrize("last", [None, SKIP, "D) Cancelar"])
@@ -457,8 +459,31 @@ def test_a_phase_ended_by_the_user_keeps_only_the_rounds_before_it(connect, last
     result = _phase(harness, build_continuation=Continuations().phase)
 
     assert result["approved"] is False
-    assert len(result["answerRounds"]) == 1
-    assert "→ B) Ajustar" in result["answerRounds"][0]
+    assert len(harness.runner.last_answer_rounds) == 1
+    assert "→ B) Ajustar" in harness.runner.last_answer_rounds[0]
+
+
+def test_rounds_answered_before_a_crashing_turn_survive_the_crash(connect):
+    """A session that dies mid-step raises; the retry still needs what was answered."""
+    agent = ScriptedAgent([Turn(QUESTIONNAIRE), Turn(error="model overloaded")])
+    harness = connect(agent, AnswerSheet(ADJUST))
+
+    with pytest.raises(RuntimeError, match="model overloaded"):
+        _phase(harness, build_continuation=Continuations().phase)
+
+    (answers,) = harness.runner.last_answer_rounds
+    assert "→ B) Ajustar" in answers
+
+
+def test_a_new_step_starts_without_the_rounds_of_the_previous_one(connect):
+    """Stale rounds would hand one step's decisions to the retry of another."""
+    agent = ScriptedAgent([Turn(QUESTIONNAIRE), Turn(QUESTIONNAIRE), Turn("done")])
+    harness = connect(agent, AnswerSheet(ADJUST, APPROVE))
+    _phase(harness, build_continuation=Continuations().phase)
+
+    _prompt(harness)
+
+    assert harness.runner.last_answer_rounds == ()
 
 
 def test_a_session_without_an_id_fails_the_phase_before_any_turn(connect):

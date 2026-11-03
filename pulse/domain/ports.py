@@ -202,6 +202,14 @@ class AgentSession(Protocol):
     @property
     def last_session_id(self) -> str: ...
 
+    @property
+    def last_answer_rounds(self) -> tuple[str, ...]:
+        """The questionnaire answers that kept the last step's session going.
+
+        Kept when the session fails mid-step, so a retry still hears them.
+        """
+        ...
+
     def bind_run(self, run_id: str, waits: UserWaitListener) -> None: ...
 
     def open(self, cwd: Path) -> None:

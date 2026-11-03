@@ -340,9 +340,10 @@ def _attempt_step(
     except Exception as error:  # noqa: BLE001
         _fail(wiring, run, record)
         return None, _session_error(error)
+    finally:
+        answered.extend(wiring.session.last_answer_rounds)
 
     turn = TurnResult.parse(raw)
-    answered.extend(turn.answer_rounds)
     record.record_reply(
         session_id=wiring.session.last_session_id, summary=format_summary(turn.summary)
     )

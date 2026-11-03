@@ -380,6 +380,7 @@ class FakeAgentSession:
         self.stream = RecordingStream()
         self.prompts: PromptPort = ScriptedPrompts()
         self.last_session_id = "sess-1"
+        self.last_answer_rounds: tuple[str, ...] = ()
         self.run_id = ""
         self.opened_in: Path | None = None
         self.sent: list[str] = []
@@ -406,8 +407,16 @@ class FakeAgentSession:
         self.models.append(profile.model)
 
     def run_isolated_phase(self, *, initial_prompt: str, phase_id: str = "", **_kwargs) -> dict:
+        """A scripted `answerRounds` key stands for the rounds the user answered.
+
+        A `before_turn` hook may set `last_answer_rounds` and return `None` to
+        script answers given before the session crashes on the queued exception.
+        """
         self.sent.append(initial_prompt)
-        return self._next(phase_id, {"approved": True})
+        self.last_answer_rounds = ()
+        result = self._next(phase_id, {"approved": True})
+        self.last_answer_rounds += tuple(result.pop("answerRounds", ()))
+        return result
 
     def run_isolated_prompt(
         self, *, prompt_text: str, phase_id: str = "", build_continuation=None, **_kwargs
@@ -418,6 +427,7 @@ class FakeAgentSession:
         by any test: the engine only offers it through this callback.
         """
         self.sent.append(prompt_text)
+        self.last_answer_rounds = ()
         result = self._next(phase_id, {"stopReason": "end_turn"})
         parts = [str(result.get("phaseSummary", ""))]
         turn = 0
