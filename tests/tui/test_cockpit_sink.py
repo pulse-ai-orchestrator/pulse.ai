@@ -351,6 +351,27 @@ def test_outcome_block_does_not_become_questionnaire():
     assert "next: close" in spoken
 
 
+def test_speech_of_the_step_after_a_questionnaire_is_shown():
+    """The engine resets its capture each turn, but that reset never crosses the bus.
+
+    Left in questionnaire mode, the cockpit hid every word the agent said in the
+    steps after an approval.
+    """
+    state = CockpitState()
+    make_workflow("demo", steps=FOUR)
+    configure_from_db(state, "demo")
+    sink = CockpitSink(state)
+    sink.begin_phase("Um")
+    sink.handle_update(_chunk("Plano pronto.\n\n```text\n1. Aprovar?\nA) Sim\n```\n"))
+
+    sink.begin_phase("Dois")
+    sink.handle_update(_chunk("Corrigi o cálculo."))
+
+    assert state.entries[-1].kind == LogKind.ASSISTANT
+    assert state.entries[-1].body == "Corrigi o cálculo."
+    assert sink.agent_text() == "Corrigi o cálculo."
+
+
 def test_unnamed_fence_with_question_is_still_questionnaire():
     state = CockpitState()
     make_workflow("demo", steps=FOUR)

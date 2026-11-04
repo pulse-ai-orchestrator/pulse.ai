@@ -206,6 +206,7 @@ class CockpitSink:
 
     def begin_phase(self, title: str, *, turn: int = 1) -> None:
         self.finish()
+        self.reset_capture()
         self._visible_tool_ids.clear()
         self._tool_payloads.clear()
         self._state.begin_phase(title, turn=turn)
