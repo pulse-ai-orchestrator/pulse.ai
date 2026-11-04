@@ -16,7 +16,11 @@ fi
 
 rm -rf "$root"
 mkdir -p "$root/home" "$root/bin" "$project"
-install -m 0755 "$demo_dir/fake_agent.py" "$root/bin/agent"
+{
+    echo "#!$repo_dir/.venv/bin/python"
+    tail -n +2 "$demo_dir/fake_agent.py"
+} >"$root/bin/agent"
+chmod 0755 "$root/bin/agent"
 ln -s "$repo_dir/.venv/bin/pulse" "$root/bin/pulse"
 
 cat >"$project/calc.py" <<'PY'
