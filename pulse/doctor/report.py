@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+import sys
+from dataclasses import asdict
+from typing import Any
+
 from pulse.acp.client import probe_acp_connection
 from pulse.config import load_global_config, load_project_config
 from pulse.config.resolved import ResolvedConfig, resolve_config
@@ -25,6 +30,14 @@ def print_doctor_report(
         print(f"{_status_icon(check.status)} {check.message}{detail}")
     if acp_probe_message:
         print(f"  ACP test: {acp_probe_message}")
+
+
+def doctor_payload(checks: list[CheckResult]) -> dict[str, Any]:
+    return {"ok": not failed(checks), "checks": [asdict(check) for check in checks]}
+
+
+def print_doctor_json(checks: list[CheckResult]) -> None:
+    print(json.dumps(doctor_payload(checks)))
 
 
 def _global_config_check() -> CheckResult | None:
@@ -79,7 +92,7 @@ def _acp_probe_check(resolved: ResolvedConfig, *, blocked: bool) -> tuple[CheckR
             detail=f"Fix the `{active}` runtime and its authentication first",
         )
         return skipped, None
-    print(f"Testing the ACP connection with `{active}`…")
+    print(f"Testing the ACP connection with `{active}`…", file=sys.stderr)
     probe = probe_acp_connection(command=list(resolved.acp_command), cwd=str(safe_cwd()))
     probed = CheckResult(
         name="ACP",
@@ -90,11 +103,11 @@ def _acp_probe_check(resolved: ResolvedConfig, *, blocked: bool) -> tuple[CheckR
     return probed, probe.message if probe.success else probe.error or probe.message
 
 
-def _failed(checks: list[CheckResult]) -> bool:
+def failed(checks: list[CheckResult]) -> bool:
     return any(check.status == "fail" for check in checks)
 
 
-def run_doctor(*, test_acp: bool = False) -> int:
+def run_doctor(*, test_acp: bool = False, as_json: bool = False) -> int:
     resolved = resolve_config()
     checks = run_doctor_checks(resolved.runtime.id)
     checks.extend(
@@ -102,7 +115,10 @@ def run_doctor(*, test_acp: bool = False) -> int:
     )
     acp_message: str | None = None
     if test_acp:
-        acp_check, acp_message = _acp_probe_check(resolved, blocked=_failed(checks))
+        acp_check, acp_message = _acp_probe_check(resolved, blocked=failed(checks))
         checks.append(acp_check)
-    print_doctor_report(checks, acp_probe_message=acp_message)
-    return 1 if _failed(checks) else 0
+    if as_json:
+        print_doctor_json(checks)
+    else:
+        print_doctor_report(checks, acp_probe_message=acp_message)
+    return 1 if failed(checks) else 0
