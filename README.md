@@ -21,6 +21,8 @@ Decide qual agente roda agora — e quando. O resto é dado.
 
 Se o Pulse for útil pra você, deixe uma ⭐: é o que ajuda o projeto a ser encontrado.
 
+<img src="docs/demo/demo.gif" alt="Uma run de Correção rápida no cockpit do Pulse: o plano pede aprovação, a implementação roda e o painel de artefatos abre a spec" width="800">
+
 </div>
 
 ---

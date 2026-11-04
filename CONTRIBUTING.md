@@ -57,6 +57,12 @@ real nem a rede.
 
 5. Atualize a documentação no mesmo PR quando mudar comportamento, rotas,
    eventos ou tabelas.
+6. Mudou o que aparece no cockpit? Regere o GIF do README com o
+   [VHS](https://github.com/charmbracelet/vhs): `pulse daemon stop` e depois
+   `vhs docs/demo/demo.tape`, na raiz do clone. A gravação roda num `HOME`
+   isolado em `/tmp/pulse-demo`, com um agente ACP roteirizado
+   ([`docs/demo/fake_agent.py`](docs/demo/fake_agent.py)) no lugar do runtime:
+   não gasta token nem mostra caminho ou credencial sua.
 
 As regras que mais pegam quem está chegando:
 
