@@ -51,7 +51,7 @@ def _use_engine(monkeypatch: pytest.MonkeyPatch, module: Any, engine: _Engine) -
 
 
 def _no_local_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
-    def refuse(*, test_acp: bool = False) -> int:
+    def refuse(*, test_acp: bool = False, as_json: bool = False) -> int:
         raise AssertionError("the local doctor must not run while the engine answers")
 
     monkeypatch.setattr(cli_main, "run_doctor", refuse)

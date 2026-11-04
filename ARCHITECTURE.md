@@ -842,7 +842,7 @@ uv sync                # .venv com o pacote e o grupo dev, travados em uv.lock
 
 pulse                  # TUI
 pulse init             # onboarding (tela Textual)
-pulse doctor           # via Engine (use --local para checks locais)
+pulse doctor           # via Engine (use --local para checks locais, --json para scripts)
 pulse config show
 pulse config show --workflow default
 pulse daemon start | status | stop

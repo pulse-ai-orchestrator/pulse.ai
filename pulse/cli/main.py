@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import Any
 
 import httpx
 
@@ -10,7 +11,7 @@ from pulse.cli.daemon_command import run_daemon_command
 from pulse.client.engine_client import EngineClient
 from pulse.config import global_config_exists
 from pulse.config.commands import run_config_command
-from pulse.doctor import run_doctor
+from pulse.doctor import CheckResult, failed, print_doctor_json, run_doctor
 from pulse.tui.brand import BANNER, PULSE_LINE, PULSE_WAVE
 
 
@@ -49,6 +50,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--local",
         action="store_true",
         help="Run the checks locally, without the daemon",
+    )
+    doctor_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the report as a single JSON object",
     )
 
     config_parser = subparsers.add_parser(
@@ -92,32 +98,52 @@ def _print_plain_welcome() -> None:
     print("Run `pulse` in an interactive terminal to open the TUI.")
 
 
-def _doctor_via_engine(*, test_acp: bool) -> int:
+def _engine_check(item: dict[str, Any]) -> CheckResult:
+    detail = item.get("detail")
+    return CheckResult(
+        name=str(item.get("name", "")),
+        status=str(item.get("status", "")),
+        message=str(item.get("message", "")),
+        detail=str(detail) if detail else None,
+    )
+
+
+def _probe_check(probe: dict[str, Any]) -> CheckResult:
+    error = probe.get("error")
+    return CheckResult(
+        name="ACP",
+        status="ok" if probe.get("ok") else "fail",
+        message=str(probe.get("message")),
+        detail=str(error) if error else None,
+    )
+
+
+def _print_engine_checks(checks: list[CheckResult]) -> None:
+    for check in checks:
+        mark = {"ok": "ok", "warn": "warn"}.get(check.status, "FAIL")
+        print(f"[{mark}] {check.name}: {check.message}")
+
+
+def _doctor_via_engine(*, test_acp: bool, as_json: bool) -> int:
     client = EngineClient()
     try:
         client.ensure_daemon()
-        payload = client.doctor()
-        checks = payload.get("checks") or []
-        failed = False
-        for item in checks:
-            status = str(item.get("status", ""))
-            name = str(item.get("name", ""))
-            message = str(item.get("message", ""))
-            mark = {"ok": "ok", "warn": "warn"}.get(status, "FAIL")
-            print(f"[{mark}] {name}: {message}")
-            if status == "fail":
-                failed = True
+        checks = [_engine_check(item) for item in client.doctor().get("checks") or []]
         if test_acp:
-            probe = client.post("/api/doctor/acp-probe", {})
-            print(f"[{'ok' if probe.get('ok') else 'FAIL'}] ACP: {probe.get('message')}")
-            if not probe.get("ok"):
-                failed = True
-        return 1 if failed else 0
+            checks.append(_probe_check(client.post("/api/doctor/acp-probe", {})))
     except (RuntimeError, OSError, httpx.HTTPError, ValueError) as error:
-        print(f"[pulse] Engine unavailable ({error}); using the local doctor")
-        return run_doctor(test_acp=test_acp)
+        print(
+            f"[pulse] Engine unavailable ({error}); using the local doctor",
+            file=sys.stderr if as_json else sys.stdout,
+        )
+        return run_doctor(test_acp=test_acp, as_json=as_json)
     finally:
         client.close()
+    if as_json:
+        print_doctor_json(checks)
+    else:
+        _print_engine_checks(checks)
+    return 1 if failed(checks) else 0
 
 
 def _start_engine() -> None:
@@ -141,9 +167,9 @@ def _dispatch(args: argparse.Namespace) -> int:
         _start_engine()
         return run_onboarding_app(force=args.force)
     if args.command == "doctor":
-        if getattr(args, "local", False):
-            return run_doctor(test_acp=args.test_acp)
-        return _doctor_via_engine(test_acp=args.test_acp)
+        if args.local:
+            return run_doctor(test_acp=args.test_acp, as_json=args.json)
+        return _doctor_via_engine(test_acp=args.test_acp, as_json=args.json)
     if args.command == "config":
         return run_config_command(
             action=args.config_action,
