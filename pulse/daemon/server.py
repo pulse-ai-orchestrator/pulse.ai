@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import contextlib
 import logging
 import os
@@ -15,6 +16,7 @@ from types import FrameType
 import uvicorn
 from fastapi import FastAPI
 
+from pulse import __version__
 from pulse.api.app import create_app
 from pulse.api.token_guard import TokenGuard
 from pulse.daemon.logs import configure_logging
@@ -32,6 +34,9 @@ from pulse.store.paths import (
 
 SOCKET_MODE = 0o600
 USAGE_ERROR = 2
+SERVE_COMMAND = "serve"
+MIN_PORT = 1
+MAX_PORT = 65535
 TOKEN_BYTES = 32
 # Masks every permission bit SOCKET_MODE does not grant.
 _SOCKET_UMASK = 0o777 & ~SOCKET_MODE
@@ -173,23 +178,39 @@ def run_daemon(
         _log.info("daemon.stopped pid=%d", pid)
 
 
+def _tcp_port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid port: {value!r}") from None
+    if not MIN_PORT <= port <= MAX_PORT:
+        raise argparse.ArgumentTypeError(f"port out of range {MIN_PORT}-{MAX_PORT}: {port}")
+    return port
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="pulse-engine",
+        description="Pulse engine daemon: serves /api/* over a Unix socket and loopback TCP.",
+    )
+    parser.add_argument("--version", action="version", version=f"pulse-engine {__version__}")
+    parser.add_argument("command", nargs="?", choices=[SERVE_COMMAND], help="Run in foreground")
+    parser.add_argument(
+        "--host", default=DEFAULT_HTTP_HOST, help=f"Loopback host (default: {DEFAULT_HTTP_HOST})"
+    )
+    parser.add_argument(
+        "--port",
+        type=_tcp_port,
+        default=DEFAULT_HTTP_PORT,
+        help=f"TCP port (default: {DEFAULT_HTTP_PORT})",
+    )
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    if args and args[0] == "serve":
-        args = args[1:]
-    host = DEFAULT_HTTP_HOST
-    port = DEFAULT_HTTP_PORT
-    i = 0
-    while i < len(args):
-        if args[i] == "--host" and i + 1 < len(args):
-            host = args[i + 1]
-            i += 2
-            continue
-        if args[i] == "--port" and i + 1 < len(args):
-            port = int(args[i + 1])
-            i += 2
-            continue
-        i += 1
+    args = _build_parser().parse_args(argv)
+    host: str = args.host
+    port: int = args.port
     # Off loopback the token would cross the network in clear text, and anyone on it could try it.
     if host not in LOOPBACK_HOSTS:
         allowed = ", ".join(LOOPBACK_HOSTS)
