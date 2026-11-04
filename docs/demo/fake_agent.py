@@ -5,30 +5,85 @@ import json
 import sys
 import time
 import uuid
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-TASK_PATH = ".pulse/specs/quick/001-media-lista-vazia/TASK.md"
+SLUG = "001-media-lista-vazia"
+STATE_PATH = ".pulse/specs/project/STATE.md"
+TASK_PATH = f".pulse/specs/quick/{SLUG}/TASK.md"
+SUMMARY_PATH = f".pulse/specs/quick/{SLUG}/SUMMARY.md"
 SOURCE_PATH = "calc.py"
 TEST_PATH = "test_calc.py"
+TITLE = "media() com lista vazia"
 
-TASK_BODY = """# Quick 001 — media() com lista vazia
+CHUNK_WORDS = 3
+CHUNK_PAUSE_SECONDS = 0.04
+TOOL_PAUSE_SECONDS = 0.45
 
-**Status:** Awaiting Approval
 
-## Problema
-`media([])` levanta `ZeroDivisionError`.
+def today() -> str:
+    return date.today().isoformat()
 
-## Abordagem
-Devolver `0.0` quando a lista estiver vazia, antes da divisão.
 
-## Arquivos
-- `calc.py`
-- `test_calc.py`
+def task_body(status: str, *, checked: bool) -> str:
+    box = "x" if checked else " "
+    return f"""# Quick Task 001: {TITLE}
 
-## Verificação
-`pytest -q`
+**Date:** {today()}
+**Status:** {status}
+
+## Description
+
+`media([])` levanta `ZeroDivisionError`; a média de uma lista vazia deve ser `0.0`.
+
+## Plan
+
+**Approach:** devolver `0.0` quando `valores` estiver vazio, antes da divisão.
+
+## Files to Touch
+
+- `{SOURCE_PATH}` — guarda para lista vazia em `media()`
+- `{TEST_PATH}` — teste do caso vazio
+
+## Verification
+
+- [{box}] `pytest -q` passa
+- [{box}] `media([])` devolve `0.0`
 """
+
+
+def state_body(status: str) -> str:
+    return f"""# State
+
+**Last Updated:** {datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
+**Current Work:** Quick {SLUG}
+
+---
+
+## Quick Tasks
+
+| #   | Description | Date | Spec | Status |
+| --- | ----------- | ---- | ---- | ------ |
+| 001 | {TITLE} | {today()} | `.pulse/specs/quick/{SLUG}/` | {status} |
+"""
+
+
+def summary_body() -> str:
+    return f"""# Summary: Quick Task 001 — {TITLE}
+
+**Completed:** {today()}
+
+## What Changed
+
+- `{SOURCE_PATH}` — `media()` devolve `0.0` para lista vazia
+- `{TEST_PATH}` — novo teste `test_media_de_lista_vazia_e_zero`
+
+## Verification
+
+`pytest -q`: 2 passed.
+"""
+
 
 FIXED_SOURCE = """def media(valores: list[float]) -> float:
     if not valores:
@@ -47,33 +102,30 @@ def test_media_de_lista_vazia_e_zero():
     assert media([]) == 0.0
 """
 
-PLAN_REPLY = f"""Spec em `{TASK_PATH}`.
+PLAN_REPLY = f"""**Quick Task 001:** {TITLE}
 
-**Causa:** `media()` divide por `len(valores)` sem checar a lista vazia.
-**Arquivos:** `{SOURCE_PATH}`, `{TEST_PATH}`.
-**Abordagem:** devolver `0.0` antes da divisão.
-**Verificação:** `pytest -q`.
+- **Spec:** `{TASK_PATH}`
+- **Files:** `{SOURCE_PATH}`, `{TEST_PATH}`
+- **Approach:** devolver `0.0` antes da divisão quando a lista estiver vazia.
+- **Verify:** `pytest -q`, com um teste novo para `media([])`.
 
 ```text
 Preciso de algumas informações antes de continuar.
-1. Aprovar Plano e avançar?
-A) Sim, aprovar e continuar
+1. Aprovar a quick task e implementar?
+A) Sim, aprovar e implementar
 B) Não, preciso de ajustes (descreva)
-C) Cancelar workflow
+C) Cancelar
 ```
 """
 
-IMPLEMENT_REPLY = """Corrigi `media()` para devolver `0.0` com lista vazia e cobri o caso \
-em `test_calc.py`. `pytest -q`: 2 passed.
+IMPLEMENT_REPLY = f"""Quick Task 001 concluída: `media()` devolve `0.0` com lista vazia, \
+coberto por `test_media_de_lista_vazia_e_zero`. `pytest -q`: 2 passed. \
+Resumo em `{SUMMARY_PATH}`.
 
 ```pulse:outcome
 status: done
 ```
 """
-
-CHUNK_WORDS = 3
-CHUNK_PAUSE_SECONDS = 0.05
-TOOL_PAUSE_SECONDS = 0.6
 
 
 def send(payload: dict[str, Any]) -> None:
@@ -114,7 +166,7 @@ def stream_text(session_id: str, text: str) -> None:
         time.sleep(CHUNK_PAUSE_SECONDS)
 
 
-def tool(session_id: str, cwd: Path, *, kind: str, title: str, path: str = "") -> None:
+def tool(session_id: str, title: str, kind: str, raw_input: dict[str, Any]) -> None:
     tool_id = uuid.uuid4().hex
     call: dict[str, Any] = {
         "sessionUpdate": "tool_call",
@@ -122,13 +174,11 @@ def tool(session_id: str, cwd: Path, *, kind: str, title: str, path: str = "") -
         "kind": kind,
         "title": title,
         "status": "in_progress",
+        "rawInput": raw_input,
     }
+    path = raw_input.get("path")
     if path:
-        absolute = str(cwd / path)
-        call["locations"] = [{"path": absolute}]
-        call["rawInput"] = {"path": absolute}
-    else:
-        call["rawInput"] = {"command": title}
+        call["locations"] = [{"path": path}]
     update(session_id, call)
     time.sleep(TOOL_PAUSE_SECONDS)
     update(
@@ -137,27 +187,41 @@ def tool(session_id: str, cwd: Path, *, kind: str, title: str, path: str = "") -
     )
 
 
-def write(cwd: Path, path: str, body: str) -> None:
+def read(session_id: str, cwd: Path, path: str) -> None:
+    tool(session_id, "Read File", "read", {"path": str(cwd / path)})
+
+
+def search(session_id: str, cwd: Path, pattern: str) -> None:
+    tool(session_id, "grep", "search", {"pattern": pattern, "path": str(cwd)})
+
+
+def write(session_id: str, cwd: Path, path: str, body: str) -> None:
     target = cwd / path
     target.parent.mkdir(parents=True, exist_ok=True)
+    kind = "edit" if target.exists() else "write"
     target.write_text(body, encoding="utf-8")
+    title = "Edit File" if kind == "edit" else "Write File"
+    tool(session_id, title, kind, {"path": str(target)})
 
 
 def plan_turn(session_id: str, cwd: Path) -> None:
-    tool(session_id, cwd, kind="read", title=f"Read {SOURCE_PATH}", path=SOURCE_PATH)
-    tool(session_id, cwd, kind="read", title=f"Read {TEST_PATH}", path=TEST_PATH)
-    write(cwd, TASK_PATH, TASK_BODY)
-    tool(session_id, cwd, kind="edit", title=f"Write {TASK_PATH}", path=TASK_PATH)
+    search(session_id, cwd, "def media")
+    read(session_id, cwd, SOURCE_PATH)
+    read(session_id, cwd, TEST_PATH)
+    write(session_id, cwd, STATE_PATH, state_body("⏳ Awaiting Approval"))
+    write(session_id, cwd, TASK_PATH, task_body("Awaiting Approval", checked=False))
     stream_text(session_id, PLAN_REPLY)
 
 
 def implement_turn(session_id: str, cwd: Path) -> None:
-    tool(session_id, cwd, kind="read", title=f"Read {TASK_PATH}", path=TASK_PATH)
-    write(cwd, SOURCE_PATH, FIXED_SOURCE)
-    tool(session_id, cwd, kind="edit", title=f"Edit {SOURCE_PATH}", path=SOURCE_PATH)
-    write(cwd, TEST_PATH, FIXED_TEST)
-    tool(session_id, cwd, kind="edit", title=f"Edit {TEST_PATH}", path=TEST_PATH)
-    tool(session_id, cwd, kind="execute", title="pytest -q")
+    read(session_id, cwd, TASK_PATH)
+    write(session_id, cwd, TASK_PATH, task_body("In Progress", checked=False))
+    write(session_id, cwd, SOURCE_PATH, FIXED_SOURCE)
+    write(session_id, cwd, TEST_PATH, FIXED_TEST)
+    tool(session_id, "pytest -q", "execute", {"command": "pytest -q"})
+    write(session_id, cwd, TASK_PATH, task_body("Done", checked=True))
+    write(session_id, cwd, SUMMARY_PATH, summary_body())
+    write(session_id, cwd, STATE_PATH, state_body("✅ Done"))
     stream_text(session_id, IMPLEMENT_REPLY)
 
 
