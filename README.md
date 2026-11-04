@@ -306,6 +306,8 @@ Toda run é iniciada pelo menu interativo do `pulse` — não há subcomando de 
 | `pulse init --force` | Reconfigurar |
 | `pulse doctor` | Verificar o ambiente |
 | `pulse doctor --test-acp` | Verificar o ambiente, incluindo teste ACP |
+| `pulse doctor --local` | Verificar o ambiente sem o daemon |
+| `pulse doctor --json` | Imprimir o relatório como um objeto JSON (`{"ok": …, "checks": [{"name", "status", "message", "detail"}]}`); sai com 1 quando algum check falha |
 | `pulse config` | Mostrar a config efetiva (global + projeto) |
 | `pulse config init` | Registrar o projeto atual no SQLite |
 | `pulse daemon start\|status\|stop` | Gerenciar o daemon |

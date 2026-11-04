@@ -35,7 +35,7 @@ class _UnstartableEngine:
 def _record_local_doctor(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
     calls: list[bool] = []
 
-    def fake_doctor(*, test_acp: bool = False) -> int:
+    def fake_doctor(*, test_acp: bool = False, as_json: bool = False) -> int:
         calls.append(test_acp)
         return 0
 

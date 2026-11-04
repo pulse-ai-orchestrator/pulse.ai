@@ -49,13 +49,14 @@ def test_main_dispatches_init(monkeypatch):
 def test_main_dispatches_doctor(monkeypatch):
     captured: dict[str, bool] = {}
 
-    def fake_doctor(*, test_acp: bool = False) -> int:
+    def fake_doctor(*, test_acp: bool = False, as_json: bool = False) -> int:
         captured["test_acp"] = test_acp
+        captured["as_json"] = as_json
         return 0
 
     monkeypatch.setattr("pulse.cli.main.run_doctor", fake_doctor)
     assert main(["doctor", "--test-acp", "--local"]) == 0
-    assert captured["test_acp"] is True
+    assert captured == {"test_acp": True, "as_json": False}
 
 
 def test_parser_accepts_daemon_status():
