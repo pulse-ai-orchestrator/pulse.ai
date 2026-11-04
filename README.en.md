@@ -6,6 +6,8 @@
 
 [![CI](https://github.com/pulse-ai-orchestrator/pulse.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/pulse-ai-orchestrator/pulse.ai/actions/workflows/ci.yml) · Python 3.11+ · [MIT](LICENSE) · [Discussions](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions)
 
+![A Quick fix run in the Pulse cockpit: the plan asks for approval, the implementation runs, and the artifacts pane opens the spec](docs/demo/demo.gif)
+
 ## Highlights
 
 - Workflows are stored as data, not hard-coded in the engine.
