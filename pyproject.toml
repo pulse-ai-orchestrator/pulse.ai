@@ -44,6 +44,12 @@ pulse = "pulse.cli.main:main"
 pulse-engine = "pulse.daemon.server:main"
 pulse-mcp-ask = "pulse.mcp.ask_stdio:main"
 
+[project.urls]
+Homepage = "https://github.com/pulse-ai-orchestrator/pulse.ai"
+Documentation = "https://github.com/pulse-ai-orchestrator/pulse.ai/tree/main/docs"
+Issues = "https://github.com/pulse-ai-orchestrator/pulse.ai/issues"
+Discussions = "https://github.com/pulse-ai-orchestrator/pulse.ai/discussions"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["pulse*"]
