@@ -322,6 +322,7 @@ Toda run é iniciada pelo menu interativo do `pulse` — não há subcomando de 
 | [Questions](docs/questions.md) | Questionário ` ```text `, `ask_question` e MCP |
 | [Quality scorecard](docs/quality-scorecard.md) | Avaliação de qualidade do projeto |
 | [ADRs](docs/adr/) | Decisões de arquitetura registradas |
+| [Changelog](CHANGELOG.md) | O que mudou em cada versão |
 
 ## Desenvolvimento
 
