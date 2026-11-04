@@ -46,6 +46,7 @@ Claude Code and Codex use version-pinned ACP adapters distributed through npm. E
 - [Agent documentation](docs/agentes.md)
 - [Logs](docs/logs.md)
 - [Questions and MCP](docs/questions.md)
+- [Changelog](CHANGELOG.md)
 - [Community discussions](https://github.com/pulse-ai-orchestrator/pulse.ai/discussions)
 - [Contributing guide](CONTRIBUTING.md)
 
