@@ -18,7 +18,7 @@ env:
 
 jobs:
   release:
-    name: tag and GitHub release
+    name: tag
     if: >-
       github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.event == 'push'
@@ -30,6 +30,7 @@ jobs:
     outputs:
       released: ${{ steps.release.outputs.released }}
       tag: ${{ steps.release.outputs.tag }}
+      notes: ${{ steps.release.outputs.release_notes }}
     steps:
       - name: Checkout the commit CI validated
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,7 +43,7 @@ jobs:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: git reset --hard "$RELEASE_SHA"
 
-      - name: Tag and release
+      - name: Tag
         id: release
         uses: python-semantic-release/python-semantic-release@b700dbeb1f431a0fcc30a79f3f0869407fe07278 # v10.7.0
         with:
@@ -50,6 +51,7 @@ jobs:
           commit: false
           changelog: false
           build: false
+          vcs_release: false
 
   publish:
     name: wheel, SBOM, checksums and PyPI
@@ -79,11 +81,14 @@ jobs:
           uv export --locked --no-dev --format cyclonedx1.5 -o dist/pulse.cdx.json
           sha256sum dist/* > "$RUNNER_TEMP/SHA256SUMS"
           mv "$RUNNER_TEMP/SHA256SUMS" dist/SHA256SUMS
-      - name: Upload release assets
+      - name: Create the GitHub release with its assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}
-        run: gh release upload "$RELEASE_TAG" dist/* --clobber
+          RELEASE_NOTES: ${{ needs.release.outputs.notes }}
+        run: |
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/notes.md"
+          gh release create "$RELEASE_TAG" dist/* --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/notes.md"
       - name: Publish to PyPI
         run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz
