@@ -72,14 +72,14 @@ jobs:
             echo "::notice title=Nothing to release::$SOURCE_BRANCH has no commit that bumps the version over ${last:-the first release}"
             exit 0
           fi
-          echo "tag=$next" >> "$GITHUB_OUTPUT"
-          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$next" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
 
       - name: Create the release branch
-        if: steps.version.outputs.tag != ''
+        if: steps.version.outputs.release_tag != ''
         env:
-          RELEASE_BRANCH: ${{ env.RELEASE_PREFIX }}${{ steps.version.outputs.tag }}
-          SOURCE_SHA: ${{ steps.version.outputs.sha }}
+          RELEASE_BRANCH: ${{ env.RELEASE_PREFIX }}${{ steps.version.outputs.release_tag }}
+          SOURCE_SHA: ${{ steps.version.outputs.source_sha }}
         run: |
           if gh api "repos/$GH_REPO/git/ref/heads/$RELEASE_BRANCH" --silent 2>/dev/null; then
             echo "::error title=Release branch exists::$RELEASE_BRANCH already exists; delete it or release from it"
@@ -88,10 +88,10 @@ jobs:
           gh api "repos/$GH_REPO/git/refs" -f ref="refs/heads/$RELEASE_BRANCH" -f sha="$SOURCE_SHA" --silent
 
       - name: Open the release PR
-        if: steps.version.outputs.tag != ''
+        if: steps.version.outputs.release_tag != ''
         env:
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
-          RELEASE_BRANCH: ${{ env.RELEASE_PREFIX }}${{ steps.version.outputs.tag }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          RELEASE_BRANCH: ${{ env.RELEASE_PREFIX }}${{ steps.version.outputs.release_tag }}
         run: |
           {
             echo "Merging this PR into \`$TARGET_BRANCH\` releases **$RELEASE_TAG**."
