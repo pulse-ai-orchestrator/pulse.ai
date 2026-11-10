@@ -108,6 +108,7 @@ class StepDef:
     requires_outcome: bool = True
     repeat: RepeatRule | None = None
     commit_type: str = ""
+    opens_request: bool = False
 
     @property
     def declares_outcome(self) -> bool:

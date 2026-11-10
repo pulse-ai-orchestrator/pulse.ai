@@ -33,6 +33,9 @@ vez só, a segunda espera e pula.
   de novo por ali.
 - A migração 4 adiciona `workflow_defs.pull_request_template`, e
   `backfill_pull_request_templates` preenche o modelo da fábrica onde ficou vazio.
+- A migração 7 adiciona `workflow_steps.opens_request` e `runs.request_opened`.
+  `backfill_opens_request` liga a coluna no step de fábrica que abre o pedido,
+  só nessa migração.
 - Banco com versão maior que a do código (gravado por um Pulse mais novo) é
   recusado com `SchemaTooNewError`, em vez de ser escrito por um schema que
   este código não conhece.

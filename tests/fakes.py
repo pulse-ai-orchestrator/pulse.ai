@@ -133,6 +133,7 @@ class FakeWorkspace:
         self.requests: list[dict[str, str]] = []
         self.deleted_branches: list[str] = []
         self.committed: list[tuple[str, list[str], str]] = []
+        self.events: list[str] = []
         self.fail_push = False
         self.fail_request = False
         self.dirty = False
@@ -185,6 +186,7 @@ class FakeWorkspace:
             raise WorkspaceError(f"{cwd} is not a worktree")
         self.log.setdefault(branch, []).append(message)
         self.committed.append((branch, list(paths), message))
+        self.events.append("commit")
 
     def commits_after(self, cwd: Path, base: str) -> list[str]:
         branch = self.worktrees.get(Path(cwd))
@@ -196,11 +198,13 @@ class FakeWorkspace:
         if self.fail_push:
             raise WorkspaceError("origin rejected the push")
         self.published.append(branch)
+        self.events.append("publish")
 
     def remove_worktree(self, path: Path) -> None:
         if self.dirty:
             raise WorkspaceError("worktree has uncommitted changes")
         self.worktrees.pop(Path(path), None)
+        self.events.append("remove")
 
     def delete_local_branch(self, branch: str) -> None:
         if branch not in self.branches:
@@ -212,6 +216,7 @@ class FakeWorkspace:
         if self.fail_request:
             raise WorkspaceError("gh: not installed")
         self.requests.append({"branch": branch, "title": title, "body": body})
+        self.events.append("request")
 
     def lose_worktree(self, path: Path) -> None:
         """The user deleted the folder; the branch stays."""

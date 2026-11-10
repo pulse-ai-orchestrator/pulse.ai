@@ -49,6 +49,7 @@ def request_command(*, forge: str, branch: str, base: str, title: str, body: str
             title,
             "--body",
             body,
+            "--draft",
         ]
     if forge == "gitlab":
         return [
@@ -64,6 +65,7 @@ def request_command(*, forge: str, branch: str, base: str, title: str, body: str
             "--description",
             body,
             "--yes",
+            "--draft",
         ]
     raise GitError(f"no pull request command for `{forge or 'unknown'}`")
 

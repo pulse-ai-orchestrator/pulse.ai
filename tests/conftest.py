@@ -37,6 +37,7 @@ def make_workflow(
     requires_outcome: bool = True,
     repeat: tuple[str, str, int] | None = None,
     commit_types: dict[str, str] | None = None,
+    opens_request: tuple[str, ...] | set[str] = (),
     pull_request_template: str = "",
 ) -> WorkflowDef:
     """Persist a test workflow in the database and return its definition.
@@ -66,6 +67,7 @@ def make_workflow(
                 if repeat and repeat[0] == step_id
                 else None,
                 commit_type=(commit_types or {}).get(step_id, ""),
+                opens_request=step_id in opens_request,
             )
             for index, (step_id, step_label) in enumerate(entries, start=1)
         ),

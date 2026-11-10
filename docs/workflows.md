@@ -17,7 +17,7 @@ workflow_defs     id, label, description, is_default, default_prompt,
                   pull_request_template
 workflow_steps    workflow_id, step_id, position, label,
                   agent_id, prompt_template, requires_approval, fan_out,
-                  commit_type
+                  commit_type, opens_request
 agent_defs        id, label, runtime, model, permission_policy, instructions
 ```
 
@@ -34,7 +34,12 @@ direto na run; vazio, ele abre o campo para o usuário descrever a tarefa.
 quando o step entrega. Vazio não commita. A opção só existe com Worktree
 ligado; PR/MR só existe com as duas.
 
-`pull_request_template` é o corpo do PR/MR que a run abre no fim, com
+`opens_request` marca o step em que o PR/MR abre. Ligado, o draft nasce quando
+a última unidade desse step termina (no `new-issue`, a última task de
+`implement`). Desligado em todo step, o draft abre só no fim da run. O pedido
+sai sempre em draft.
+
+`pull_request_template` é o corpo do PR/MR, com
 `{{prompt}}`, `{{branch}}` e `{{commits}}` (um `- assunto` por linha). A fábrica
 semeia [`pulse/store/factory/pull_request.md`](../pulse/store/factory/pull_request.md);
 vazio, o corpo é o prompt seguido dos commits.

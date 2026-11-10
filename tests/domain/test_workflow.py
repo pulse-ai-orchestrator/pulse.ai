@@ -148,6 +148,7 @@ def test_a_fan_out_child_runs_like_its_step_without_fanning_out_or_looping():
         fan_out=True,
         requires_approval=True,
         requires_outcome=False,
+        opens_request=True,
     )
 
     child = step.for_item(step_id="review:T1", label="Task 1", position=101)
@@ -161,4 +162,5 @@ def test_a_fan_out_child_runs_like_its_step_without_fanning_out_or_looping():
         prompt_template="{{user_prompt}}",
         requires_approval=True,
         requires_outcome=False,
+        opens_request=True,
     )

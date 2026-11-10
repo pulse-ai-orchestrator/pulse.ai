@@ -403,9 +403,15 @@ caminhos que mudaram naquele step, dentro do worktree (arquivos de pasta não
 rastreada contam um a um). No fim da run, com Autocommit ligado e se essa
 branch teve commit, o Pulse faz `git push -u origin`; sem Autocommit nada é
 publicado, mesmo que o agente tenha commitado sozinho. Com PR/MR ligado, abre o
-pedido no GitHub (`gh pr create`) ou no GitLab (`glab mr create`) contra o
-`origin/HEAD` (sem ele, o pedido não abre e a run avisa), com o corpo de
-`workflow_defs.pull_request_template`. Push ok e árvore limpa: a pasta do worktree sai e a branch local sai com
+pedido **em draft** no GitHub (`gh pr create --draft`) ou no GitLab
+(`glab mr create --draft`) contra o `origin/HEAD` (sem ele, o pedido não abre e
+a run avisa), com o corpo de `workflow_defs.pull_request_template`. Um step com
+`opens_request` abre esse draft assim que a última unidade dele termina — na
+semente, a última task de `implement` em `new-issue` — e o worktree continua
+para os steps seguintes. O fim da run faz push de novo, para os commits
+posteriores entrarem no mesmo draft, e não abre um segundo pedido. Workflow sem
+esse step abre o draft só no fim. Push recusado no meio da run só avisa; push
+recusado no fim encerra a run. Push ok e árvore limpa: a pasta do worktree sai e a branch local sai com
 `git branch -d`; fica a branch remota. Push recusado, árvore suja, run parada
 ou step falho: a pasta e a branch local ficam. O motor fala com git, `gh` e
 `glab` pela porta `Workspace`.

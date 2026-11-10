@@ -30,7 +30,7 @@ from pulse.domain.ports import (
 )
 from pulse.domain.run import RunRecord, StepRecord, StepStatus
 from pulse.domain.task_brief import EMPTY_BRIEF, TaskBrief
-from pulse.domain.workflow import StepDef, WorkflowDef
+from pulse.domain.workflow import Loop, StepDef, WorkflowDef
 from pulse.orchestrator import wording
 from pulse.orchestrator.agent_text import (
     build_continuation_prompt,
@@ -44,6 +44,7 @@ from pulse.orchestrator.agent_text import (
 from pulse.orchestrator.delivery import (
     commit_delivery,
     publish_finished_run,
+    publish_ready_request,
     snapshot_if_committing,
 )
 from pulse.orchestrator.fanout import POSITION_STRIDE, Item, expand
@@ -183,56 +184,19 @@ def _execute(wiring: Wiring, *, definition: WorkflowDef, run: RunRecord) -> int:
             wiring.runs.save(run)
             sync_steps(wiring, run)
 
-            for step, item in units:
-                record = run.add_step(
-                    StepRecord(
-                        step_id=step.step_id,
-                        position=step.position,
-                        label=step.label,
-                        agent_id=step.agent_id,
-                    )
-                )
-
-                if record.settled:
-                    continue
-
-                if not wiring.control.checkpoint():
-                    notify(wiring, wording.RUN_STOPPED_BY_USER)
-                    run.end(RUN_STOPPED)
-                    wiring.runs.save(run)
-                    return RUN_STOPPED
-
-                loop = loops.get(at)
-                opens_loop = loop is not None and loop.opens(at)
-                exit_code, signal = _run_step(
-                    wiring,
-                    run=run,
-                    step=step,
-                    record=record,
-                    item=item,
-                    may_close=opens_loop,
-                )
-                sync_steps(wiring, run)
-                if exit_code != 0:
-                    run.end(exit_code)
-                    wiring.runs.save(run)
-                    return exit_code
-
-                if signal == LoopSignal.CLOSE and loop is not None and opens_loop:
-                    index = close_loop(run, definition, loop)
-                    wiring.runs.save(run)
-                    sync_steps(wiring, run)
-                    notify(wiring, wording.loop_closed(record.label))
-                    break
-
-                if signal == LoopSignal.REPEAT and loop is not None and loop.closes(at):
-                    target, message = repeat_loop(run, definition, loop, record.label)
-                    wiring.runs.save(run)
-                    notify(wiring, message)
-                    if target is not None:
-                        index = target
-                        sync_steps(wiring, run)
-                        break
+            exit_code, finished, index = _run_units(
+                wiring,
+                definition=definition,
+                run=run,
+                units=units,
+                loops=loops,
+                at=at,
+                index=index,
+            )
+            if exit_code is not None:
+                return exit_code
+            if finished and definition_step.opens_request:
+                publish_ready_request(wiring, run, template=definition.pull_request_template)
 
         run.retire_steps_outside({step.step_id for step in definition.steps})
         failed = publish_finished_run(wiring, run, template=definition.pull_request_template)
@@ -246,6 +210,76 @@ def _execute(wiring: Wiring, *, definition: WorkflowDef, run: RunRecord) -> int:
         return 0
     finally:
         wiring.session.close()
+
+
+def _run_units(
+    wiring: Wiring,
+    *,
+    definition: WorkflowDef,
+    run: RunRecord,
+    units: list[tuple[StepDef, Item | None]],
+    loops: dict[int, Loop],
+    at: int,
+    index: int,
+) -> tuple[int | None, bool, int]:
+    """Run every unit of one definition step.
+
+    Returns the exit code when the run must stop, whether every unit finished,
+    and the index the loop may have moved. A loop that breaks out leaves the
+    step unfinished, so the caller does not publish from it.
+    """
+    for step, item in units:
+        record = run.add_step(
+            StepRecord(
+                step_id=step.step_id,
+                position=step.position,
+                label=step.label,
+                agent_id=step.agent_id,
+            )
+        )
+
+        if record.settled:
+            continue
+
+        if not wiring.control.checkpoint():
+            notify(wiring, wording.RUN_STOPPED_BY_USER)
+            run.end(RUN_STOPPED)
+            wiring.runs.save(run)
+            return RUN_STOPPED, False, index
+
+        loop = loops.get(at)
+        opens_loop = loop is not None and loop.opens(at)
+        exit_code, signal = _run_step(
+            wiring,
+            run=run,
+            step=step,
+            record=record,
+            item=item,
+            may_close=opens_loop,
+        )
+        sync_steps(wiring, run)
+        if exit_code != 0:
+            run.end(exit_code)
+            wiring.runs.save(run)
+            return exit_code, False, index
+
+        if signal == LoopSignal.CLOSE and loop is not None and opens_loop:
+            index = close_loop(run, definition, loop)
+            wiring.runs.save(run)
+            sync_steps(wiring, run)
+            notify(wiring, wording.loop_closed(record.label))
+            return None, False, index
+
+        if signal == LoopSignal.REPEAT and loop is not None and loop.closes(at):
+            target, message = repeat_loop(run, definition, loop, record.label)
+            wiring.runs.save(run)
+            notify(wiring, message)
+            if target is not None:
+                index = target
+                sync_steps(wiring, run)
+                return None, False, index
+
+    return None, True, index
 
 
 def _run_step(

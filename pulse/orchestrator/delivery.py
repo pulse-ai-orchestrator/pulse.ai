@@ -46,28 +46,57 @@ def commit_delivery(
         notify(wiring, wording.commit_failed(str(error)))
 
 
-def publish_finished_run(wiring: Wiring, run: RunRecord, *, template: str) -> int | None:
-    """Push, open the request and drop the local worktree. `1` when the push fails.
+def publish_ready_request(wiring: Wiring, run: RunRecord, *, template: str) -> None:
+    """Push and open the draft once, leaving the worktree for the steps still ahead.
 
-    Push sits behind Autocommit: without it the user never opted into publishing,
-    even if the agent committed on its own.
+    A push or forge failure is reported and the run goes on: the end of the run
+    pushes again and opens the request if this attempt did not.
     """
-    if not wiring.atomic_commits:
-        return None
-    if not run.owns_branch or not run.branch_base or not run.worktree_path:
+    if run.request_opened or not wiring.auto_pull_request:
+        return
+    subjects = _subjects(wiring, run)
+    if subjects is None:
+        return
+    try:
+        wiring.ports.workspace.publish_branch(run.branch)
+    except WorkspaceError as error:
+        notify(wiring, wording.publish_failed(str(error)))
+        return
+    if _open_request(wiring, run, subjects, template):
+        run.note_request_opened()
+        wiring.runs.save(run)
+
+
+def publish_finished_run(wiring: Wiring, run: RunRecord, *, template: str) -> int | None:
+    """Push, open the request if it is not open yet, and drop the local worktree.
+
+    `1` when the push fails. Push sits behind Autocommit: without it the user
+    never opted into publishing, even if the agent committed on its own.
+    """
+    subjects = _subjects(wiring, run)
+    if subjects is None:
         return None
     cwd = Path(run.worktree_path)
-    subjects = wiring.ports.workspace.commits_after(cwd, run.branch_base)
-    if not subjects:
-        return None
     try:
         wiring.ports.workspace.publish_branch(run.branch)
     except WorkspaceError as error:
         notify(wiring, wording.publish_failed(str(error)))
         return 1
-    _open_request(wiring, run, subjects, template)
+    if not run.request_opened and _open_request(wiring, run, subjects, template):
+        run.note_request_opened()
     _drop_local(wiring, run, cwd)
     return None
+
+
+def _subjects(wiring: Wiring, run: RunRecord) -> list[str] | None:
+    if not wiring.atomic_commits:
+        return None
+    if not run.owns_branch or not run.branch_base or not run.worktree_path:
+        return None
+    subjects = wiring.ports.workspace.commits_after(Path(run.worktree_path), run.branch_base)
+    if not subjects:
+        return None
+    return subjects
 
 
 def _will_commit(wiring: Wiring, run: RunRecord, step: StepDef) -> bool:
@@ -81,9 +110,9 @@ def pull_request_body(template: str, *, prompt: str, branch: str, commits: list[
     return render(template or DEFAULT_PULL_REQUEST_TEMPLATE, context)
 
 
-def _open_request(wiring: Wiring, run: RunRecord, subjects: list[str], template: str) -> None:
+def _open_request(wiring: Wiring, run: RunRecord, subjects: list[str], template: str) -> bool:
     if not wiring.auto_pull_request:
-        return
+        return False
     try:
         body = pull_request_body(
             template, prompt=run.user_prompt, branch=run.branch, commits=subjects
@@ -93,6 +122,8 @@ def _open_request(wiring: Wiring, run: RunRecord, subjects: list[str], template:
         )
     except (TemplateError, WorkspaceError) as error:
         notify(wiring, wording.pull_request_failed(str(error)))
+        return False
+    return True
 
 
 def _drop_local(wiring: Wiring, run: RunRecord, cwd: Path) -> None:

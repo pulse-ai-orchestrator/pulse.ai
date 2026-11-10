@@ -320,3 +320,110 @@ def test_a_resumed_run_keeps_the_git_options_it_started_with(tmp_path: Path):
     assert code == 0
     assert run.worktree_path == ""
     assert harness.workspace.worktrees == {}
+
+
+def _items_turn() -> dict[str, object]:
+    return {
+        "stopReason": "end_turn",
+        "phaseSummary": (
+            "lista\n\n```pulse:items\nT1 — Um\nT2 — Dois\n```\n\n"
+            "```pulse:outcome\nstatus: done\n```"
+        ),
+    }
+
+
+def _touch(harness: EngineHarness, session: FakeAgentSession):
+    def edit(step_id: str) -> None:
+        if session.opened_in is None or step_id == "plan":
+            return None
+        name = step_id.replace(":", "-")
+        harness.workspace.files[session.opened_in] = {f"src/{name}.py": "x"}
+        return None
+
+    return edit
+
+
+def test_the_draft_opens_when_the_last_fan_out_unit_finishes(tmp_path: Path):
+    """Later steps still commit onto the branch; the request is not opened again."""
+    make_workflow(
+        "demo",
+        steps=[("plan", "Planejar"), ("run", "Implementar"), ("verify", "Verificar")],
+        requires_approval=False,
+        fan_out=("run",),
+        opens_request=("run",),
+        commit_types={"run": "feat", "verify": "docs"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    session = FakeAgentSession([_items_turn(), _delivered(), _delivered(), _delivered()])
+    session._before_turn = _touch(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert harness.workspace.events == [
+        "commit",
+        "commit",
+        "publish",
+        "request",
+        "commit",
+        "publish",
+        "remove",
+    ]
+    assert len(harness.workspace.requests) == 1
+    run = harness.runs.only()
+    assert run.request_opened is True
+    assert run.worktree_path == ""
+
+
+def test_a_resumed_run_does_not_open_a_second_request(tmp_path: Path):
+    """The draft opened with the last task stays the only one after a resume."""
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar"), ("verify", "Verificar")],
+        requires_approval=False,
+        opens_request=("implement",),
+        commit_types={"implement": "feat", "verify": "docs"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    session = FakeAgentSession([_delivered(), RuntimeError("caiu")])
+    session._before_turn = _touch(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 1
+    run_id = harness.runs.only().id
+    assert harness.runs.only().request_opened is True
+    assert harness.runs.only().worktree_path
+    assert len(harness.workspace.requests) == 1
+
+    resumed = FakeAgentSession([_delivered()])
+    resumed._before_turn = _touch(harness, resumed)
+    code = harness.run(
+        resumed,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        resume_run_id=run_id,
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert harness.workspace.events.count("request") == 1
+    assert harness.runs.only().worktree_path == ""

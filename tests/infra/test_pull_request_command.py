@@ -37,9 +37,11 @@ def test_github_and_gitlab_get_the_same_title_and_body():
 
     assert github[:3] == ["gh", "pr", "create"]
     assert "--body" in github
+    assert "--draft" in github
     assert body in github
     assert gitlab[:3] == ["glab", "mr", "create"]
     assert "--description" in gitlab
+    assert "--draft" in gitlab
     assert body in gitlab
     assert "--force" not in github
     assert "--force" not in gitlab
@@ -102,6 +104,7 @@ def test_opening_a_request_uses_the_forge_command_and_reports_its_failure(
     monkeypatch.setattr(subprocess, "run", _ok)
     open_request(tmp_path, branch="corrigir-o-login", title="t", body="corpo", base="main")
     assert seen[0][:3] == ["gh", "pr", "create"]
+    assert "--draft" in seen[0]
     assert "corpo" in seen[0]
 
     def _fail(command, **_kwargs):

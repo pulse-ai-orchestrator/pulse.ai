@@ -92,6 +92,7 @@ def _run(row: sqlite3.Row, steps: list[StepRecord]) -> RunRecord:
         title=str(row["title"] or ""),
         description=str(row["description"] or ""),
         git=_git_options(row),
+        request_opened=bool(row["request_opened"]),
         steps=steps,
     )
 
@@ -242,7 +243,7 @@ def save(run: RunRecord, *, db_path: Path | None = None) -> None:
             """
             UPDATE runs
             SET status = ?, current_step = ?, worktree_path = ?, branch = ?,
-                branch_owned = ?, branch_base = ?, updated_at = ?
+                branch_owned = ?, branch_base = ?, request_opened = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -252,6 +253,7 @@ def save(run: RunRecord, *, db_path: Path | None = None) -> None:
                 run.branch,
                 int(run.branch_owned),
                 run.branch_base,
+                int(run.request_opened),
                 _now_text(),
                 run.id,
             ),
