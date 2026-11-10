@@ -1,20 +1,29 @@
-#### Descrição:
-{{prompt}}
+## Resumo
 
-#### Contexto Adicional:
-Branch `{{branch}}`.
-{{commits}}
+<!-- Visão geral em 1–3 frases: o que esta PR faz. -->
 
-#### Link do Figma:
-[Se houver algum link de figma anexar aqui, para avaliar o layout com o resultado de desenvolvimento]
+## Motivação / Contexto
 
-#### Capturas de Tela:
-[Se houver mudanças visuais ou novos recursos implementados, adicione capturas de tela aqui para mostrar como eles ficam.]
+<!-- Por que a mudança é necessária. Issues, RFCs, incidentes ou discussão prévia. -->
 
-#### Checklist:
-- [ ] Testado localmente
-- [ ] Cobertura de testes
-- [ ] Changelog Atualizado
 
-#### Como Testar:
-[Uma breve descrição de como testar]
+## Notas de implementação (opcional)
+
+<!-- Decisões, trade-offs, alternativas consideradas, follow-ups. -->
+
+
+## Capturas de tela / gravações (se aplicável)
+
+<!-- UI: antes/depois. API: exemplo de request/response. Caso contrário: N/A. -->
+
+## Riscos e publicação
+
+<!-- Feature flags, migrações, rollback. Omitir se não aplicável. -->
+
+
+## Como testar
+
+<!-- Passos exatos: ambiente, flags, dados, endpoints, fluxo na UI. -->
+
+1.
+2.

@@ -46,12 +46,14 @@ def test_the_pull_request_body_renders_the_workflow_template():
     )
 
 
-def test_a_workflow_without_a_template_gets_the_prompt_and_the_commits():
+def test_a_workflow_without_a_template_gets_the_standard_body_and_the_commits():
+    """An empty column is the Pulse template, with the task and the commits after it."""
     body = pull_request_body(
         "", prompt="Corrigir o login", branch="b", commits=["feat: add email validation"]
     )
 
-    assert body == "Corrigir o login\n\n- feat: add email validation"
+    assert body.startswith("## Resumo\n")
+    assert body.endswith("Corrigir o login\n\n- feat: add email validation\n")
 
 
 def test_a_delivered_step_commits_only_what_changed_and_publishes_the_branch(tmp_path: Path):
@@ -241,7 +243,7 @@ def test_a_path_gone_after_the_step_is_left_out_of_its_commit(tmp_path: Path):
 
 
 def test_the_pull_request_is_titled_with_the_run_title(tmp_path: Path):
-    """The branch is a slug; the request a reviewer reads carries the title the user wrote."""
+    """A Conventional Commits title the user wrote is the request title."""
     make_workflow(
         "demo",
         steps=[("implement", "Implementar")],
@@ -261,16 +263,17 @@ def test_the_pull_request_is_titled_with_the_run_title(tmp_path: Path):
         atomic_commits=True,
         auto_pull_request=True,
         branch="fix-login",
-        brief=TaskBrief(title="Corrigir o login", description="erro 500"),
+        brief=TaskBrief(title="fix: correct the login", description="erro 500"),
     )
 
     assert code == 0
     assert [(item["branch"], item["title"]) for item in harness.workspace.requests] == [
-        ("fix-login", "Corrigir o login")
+        ("fix-login", "fix: correct the login")
     ]
 
 
-def test_a_run_without_a_title_names_its_pull_request_after_the_branch(tmp_path: Path):
+def test_a_run_without_a_title_names_its_pull_request_after_the_commit(tmp_path: Path):
+    """The commit subject is already a Conventional Commits title in English."""
     make_workflow(
         "demo",
         steps=[("implement", "Implementar")],
@@ -291,7 +294,94 @@ def test_a_run_without_a_title_names_its_pull_request_after_the_branch(tmp_path:
         auto_pull_request=True,
     )
 
-    assert [item["title"] for item in harness.workspace.requests] == ["corrigir-o-login"]
+    assert [item["title"] for item in harness.workspace.requests] == ["feat: add email validation"]
+
+
+def test_a_portuguese_run_title_yields_the_commit_subject():
+    """The history keeps the user's words; the request a reviewer reads does not."""
+    from pulse.orchestrator.delivery import pull_request_title
+
+    assert (
+        pull_request_title(
+            title="Corrigir o login",
+            branch="corrigir-o-login",
+            commits=["fix: keep the session", "feat: add email validation"],
+        )
+        == "feat: add email validation"
+    )
+
+
+def test_the_agent_fills_the_project_template_and_leaves_the_workflow_one(tmp_path: Path):
+    """The project file is the structure. The draft body is the markdown the agent returned."""
+    filled = "## Resumo\n\nCorrige o login.\n\n## Capturas de tela\n\nN/A\n"
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar")],
+        requires_approval=False,
+        commit_types={"implement": "feat"},
+        pull_request_template="#### Só o workflow\n{{prompt}}",
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    harness.workspace.template_files = {
+        ".github/pull_request_template.md": "## Resumo\n\n<!-- do projeto -->\n"
+    }
+    session = FakeAgentSession([_delivered()])
+    session.pull_request_turn = {
+        "stopReason": "end_turn",
+        "phaseSummary": f"antes\n\n```pulse:pull-request\n{filled}```\n",
+    }
+    session._before_turn = _editing(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert harness.workspace.requests[0]["body"] == filled.strip()
+    prompt = session.sent[-1]
+    assert "<!-- do projeto -->" in prompt
+    assert "Só o workflow" not in prompt
+    assert "Não invente captura" in prompt
+    assert "Implementar:" in prompt
+
+
+def test_a_missing_pull_request_block_still_opens_the_draft(tmp_path: Path):
+    """The agent can fail to answer. The request still opens from the template."""
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar")],
+        requires_approval=False,
+        commit_types={"implement": "feat"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    harness.workspace.template_files = {
+        ".github/pull_request_template.md": "## Resumo\n\n<!-- vazio -->\n"
+    }
+    session = FakeAgentSession([_delivered()])
+    session.pull_request_turn = RuntimeError("caiu")
+    session._before_turn = _editing(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    body = harness.workspace.requests[0]["body"]
+    assert body.startswith("## Resumo\n\n<!-- vazio -->")
+    assert "Corrigir o login" in body
+    assert "- feat: add email validation" in body
 
 
 def test_a_resumed_run_keeps_the_git_options_it_started_with(tmp_path: Path):

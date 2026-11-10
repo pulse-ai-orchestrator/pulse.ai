@@ -7,6 +7,7 @@ from pathlib import Path
 from pulse import vcs
 from pulse.domain.branch_name import worktree_folders
 from pulse.vcs import changes, publish
+from pulse.vcs.request_template import load_request_template
 
 
 class GitWorkspace:
@@ -88,6 +89,12 @@ class GitWorkspace:
         if not base:
             raise vcs.GitError("origin has no default branch (`git remote set-head origin -a`)")
         publish.open_request(repo, branch=branch, title=title, body=body, base=base)
+
+    def request_template(self, cwd: Path) -> str:
+        repo = vcs.repo_root(cwd)
+        if repo is None:
+            return ""
+        return load_request_template(repo)
 
     def _project_in(self, worktree: Path) -> Path:
         """The project's folder inside `worktree`, created when the checkout lacks it."""

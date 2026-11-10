@@ -99,6 +99,10 @@ def pull_request_failed(error: str) -> str:
     return f"Não abri o pedido: {error}"
 
 
+def describing_pull_request() -> str:
+    return "Descrição do pedido"
+
+
 def worktree_left_dirty() -> str:
     return "A pasta do worktree ficou: ainda há alteração sem commit"
 

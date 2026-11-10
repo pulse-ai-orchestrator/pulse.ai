@@ -44,3 +44,19 @@ def render(text: str, context: dict[str, str]) -> str:
     if missing:
         raise TemplateError("placeholder without a value: " + ", ".join(sorted(set(missing))))
     return result
+
+
+def fill_present(text: str, context: dict[str, str]) -> str:
+    """Replace `{{key}}` when `context` has it. A key it lacks stays written.
+
+    A project's own template is not a Pulse template: an unknown placeholder
+    must not stop the request from opening.
+    """
+
+    def _replace(match: re.Match[str]) -> str:
+        key = match.group(1).lower()
+        if key not in context:
+            return match.group(0)
+        return context[key]
+
+    return PLACEHOLDER.sub(_replace, text)

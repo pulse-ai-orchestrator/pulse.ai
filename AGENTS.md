@@ -18,9 +18,9 @@ responsibility: **decide which agent runs now, and when.**
   produced, and does not expect files with known names.
 - Workflows, steps and agents are **data in SQLite** (`~/.pulse/pulse.db`),
   never code.
-- The only text Pulse interprets from an agent is the three fenced blocks it
-  specified itself: the approval questionnaire, `pulse:outcome`, and the fan-out
-  item list.
+- The only text Pulse interprets from an agent is the fenced blocks it
+  specified itself: the approval questionnaire, `pulse:outcome`, the fan-out
+  item list, and `pulse:pull-request`.
 
 If a change makes the engine aware of a specific workflow, phase, artifact name
 or domain term, it is the wrong change.

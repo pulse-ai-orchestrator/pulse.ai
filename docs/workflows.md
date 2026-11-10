@@ -39,10 +39,14 @@ a última unidade desse step termina (no `new-issue`, a última task de
 `implement`). Desligado em todo step, o draft abre só no fim da run. O pedido
 sai sempre em draft.
 
-`pull_request_template` é o corpo do PR/MR, com
-`{{prompt}}`, `{{branch}}` e `{{commits}}` (um `- assunto` por linha). A fábrica
-semeia [`pulse/store/factory/pull_request.md`](../pulse/store/factory/pull_request.md);
-vazio, o corpo é o prompt seguido dos commits.
+`pull_request_template` é o corpo do PR/MR quando o repositório não tem o seu.
+A fábrica semeia [`pulse/store/factory/pull_request.md`](../pulse/store/factory/pull_request.md),
+o mesmo texto de [`.github/pull_request_template.md`](../.github/pull_request_template.md).
+Se o projeto tem template na branch default, esse arquivo é o modelo. Um turno
+do agente preenche as seções que se aplicam e devolve `pulse:pull-request`.
+Sem o bloco, o Pulse usa o template e, quando ele não cita `{{prompt}}`,
+`{{branch}}` ou `{{commits}}`, acrescenta o pedido e a lista de commits. O
+título do pedido é Conventional Commits em inglês.
 
 ## 1.1 A semente de fábrica
 

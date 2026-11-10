@@ -169,8 +169,13 @@ def _read(path: Path) -> str:
 
 
 def pull_request_template() -> str:
-    """PR/MR body a factory workflow opens: `{{prompt}}`, `{{branch}}`, `{{commits}}`."""
+    """PR/MR body a factory workflow opens. The agent fills the sections that apply."""
     return _read(factory_dir() / "pull_request.md")
+
+
+def previous_pull_request_template() -> str:
+    """The factory body shipped before the repository template became the standard."""
+    return _read(factory_dir() / "pull_request_v1.md")
 
 
 def _expand_includes(text: str) -> str:
@@ -397,6 +402,17 @@ def backfill_opens_request(connection: sqlite3.Connection) -> None:
          WHERE workflow_id = ? AND step_id = ? AND opens_request = 0
         """,
         rows,
+    )
+
+
+def replace_stock_pull_request_template(connection: sqlite3.Connection) -> None:
+    """Move factory workflows still on the previous stock body to the current one.
+
+    A template the user edited does not match the previous stock text and stays.
+    """
+    connection.execute(
+        "UPDATE workflow_defs SET pull_request_template = ? WHERE pull_request_template = ?",
+        (pull_request_template(), previous_pull_request_template()),
     )
 
 

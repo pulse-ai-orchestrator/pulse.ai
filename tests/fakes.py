@@ -27,6 +27,7 @@ from pulse.domain.ports import (
 )
 from pulse.domain.run import RunRecord, RunStatus, StepRecord, StepStatus, utc_now
 from pulse.domain.task_brief import EMPTY_BRIEF, TaskBrief
+from pulse.vcs.request_template import select_template
 
 
 class InMemoryRunRepository:
@@ -137,6 +138,9 @@ class FakeWorkspace:
         self.fail_push = False
         self.fail_request = False
         self.dirty = False
+        self.template_files: dict[str, str] = {}
+        self.template_directory = ""
+        self.forge = ""
 
     @property
     def root(self) -> Path:
@@ -217,6 +221,11 @@ class FakeWorkspace:
             raise WorkspaceError("gh: not installed")
         self.requests.append({"branch": branch, "title": title, "body": body})
         self.events.append("request")
+
+    def request_template(self, _cwd: Path) -> str:
+        return select_template(
+            self.template_files, forge=self.forge, directory_file=self.template_directory
+        )
 
     def lose_worktree(self, path: Path) -> None:
         """The user deleted the folder; the branch stays."""
@@ -393,6 +402,7 @@ class FakeAgentSession:
         self.models: list[str | None] = []
         self.closed = False
         self.revivals = 0
+        self.pull_request_turn: Turn | None = None
 
     def bind_run(self, run_id: str, waits: UserWaitListener) -> None:
         self.run_id = run_id
@@ -445,6 +455,15 @@ class FakeAgentSession:
             parts.append(str(result.get("phaseSummary", "")))
             result["phaseSummary"] = "\n\n".join(part for part in parts if part)
             turn += 1
+        return result
+
+    def draft_pull_request(self, *, prompt_text: str, **_kwargs) -> dict:
+        self.sent.append(prompt_text)
+        result = self.pull_request_turn
+        if isinstance(result, BaseException):
+            raise result
+        if result is None:
+            return {"stopReason": "end_turn", "phaseSummary": ""}
         return result
 
     def _next(self, step_id: str, default: dict) -> dict:

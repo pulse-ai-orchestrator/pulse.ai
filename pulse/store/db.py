@@ -256,6 +256,13 @@ def _apply_run_brief(connection: sqlite3.Connection) -> set[tuple[str, str]]:
     return _add_columns(connection, columns)
 
 
+def _refresh_stock_pull_request_template(connection: sqlite3.Connection) -> set[tuple[str, str]]:
+    from pulse.store import factory
+
+    factory.replace_stock_pull_request_template(connection)
+    return set()
+
+
 def _apply_opens_request(connection: sqlite3.Connection) -> set[tuple[str, str]]:
     columns = (
         ("workflow_steps", "opens_request", "INTEGER NOT NULL DEFAULT 0"),
@@ -342,6 +349,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(version=5, apply=_apply_run_brief),
     Migration(version=6, apply=_key_artifacts_by_step),
     Migration(version=7, apply=_apply_opens_request),
+    Migration(version=8, apply=_refresh_stock_pull_request_template),
 )
 
 

@@ -95,6 +95,19 @@ def test_every_factory_step_renders_with_what_the_engine_offers():
             render(step.prompt_template, first_step)
 
 
+def test_the_factory_pull_request_template_is_the_repository_template():
+    """The seed, the engine fallback and the GitHub file are one template."""
+    from pulse.orchestrator.pull_request_template import PULSE_PULL_REQUEST_TEMPLATE
+    from pulse.store.factory import pull_request_template
+
+    github = (
+        Path(__file__).resolve().parents[2] / ".github" / "pull_request_template.md"
+    ).read_text(encoding="utf-8")
+
+    assert pull_request_template() == github
+    assert PULSE_PULL_REQUEST_TEMPLATE == github
+
+
 def test_every_factory_pull_request_template_renders_with_what_the_engine_offers():
     """The body is rendered at the end of a run; a placeholder the engine does not fill
     would leave the pull request unopened.
