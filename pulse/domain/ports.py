@@ -250,6 +250,16 @@ class AgentSession(Protocol):
         """A step that ends when the agent ends its turn."""
         ...
 
+    def draft_pull_request(
+        self,
+        *,
+        workflow: str,
+        phase_label: str,
+        prompt_text: str,
+    ) -> JsonObject:
+        """One session whose only job is to fill the pull request body."""
+        ...
+
 
 # The ports below sit between adapters, not between the engine and the world:
 # the ACP session runner gets them from the daemon instead of importing the
@@ -400,6 +410,10 @@ class Workspace(Protocol):
 
     def open_pull_request(self, *, branch: str, title: str, body: str) -> None:
         """Open a draft pull request or merge request for `branch` on `origin`."""
+        ...
+
+    def request_template(self, cwd: Path) -> str:
+        """The project's pull or merge request template, or empty when it has none."""
         ...
 
 

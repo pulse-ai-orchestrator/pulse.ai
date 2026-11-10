@@ -45,6 +45,19 @@ class _SessionHost(Protocol):
 
     def prompt(self, session_id: str, text: str) -> dict[str, Any]: ...
 
+    def run_isolated_prompt(
+        self,
+        *,
+        workflow: str,
+        phase_label: str,
+        prompt_text: str,
+        preferred_model: str | None = None,
+        agent_mode: bool = True,
+        phase_id: str = "",
+        build_continuation: PromptContinuation | None = None,
+        max_turns: int = MAX_PROMPT_TURNS,
+    ) -> dict[str, Any]: ...
+
     def close_session(self) -> None: ...
 
     def _begin_phase(self, label: str, *, turn: int = 1) -> None: ...
@@ -204,3 +217,19 @@ class StepTurns:
             return result
         finally:
             self.close_session()
+
+    def draft_pull_request(
+        self: _SessionHost,
+        *,
+        workflow: str,
+        phase_label: str,
+        prompt_text: str,
+    ) -> dict[str, Any]:
+        """A session that only writes the request body, with nothing for the agent to edit."""
+        return self.run_isolated_prompt(
+            workflow=workflow,
+            phase_label=phase_label,
+            prompt_text=prompt_text,
+            agent_mode=False,
+            max_turns=1,
+        )

@@ -177,7 +177,7 @@ entre steps, que hoje ainda não acontece (ver §Fora de escopo).
 
 ### O que o motor interpreta da resposta
 
-Três blocos cercados que o próprio Pulse especificou — nunca o conteúdo do que o
+Quatro blocos cercados que o próprio Pulse especificou — nunca o conteúdo do que o
 agente produziu, nunca um arquivo que ele escreveu.
 
 **1. O questionário de aprovação**
@@ -219,6 +219,12 @@ arquivo não engole o bloco real do agente; bloco malformado conta como ausente
 
 **3. A lista de itens do fan-out**
 ([`pulse/orchestrator/fanout.py`](pulse/orchestrator/fanout.py)).
+
+**4. O corpo do PR/MR** ([`pulse/replies/pull_request.py`](pulse/replies/pull_request.py)).
+Na hora de abrir o draft, um turno só para isso devolve o markdown preenchido
+em `pulse:pull-request`. O parser não lê os títulos das seções. Bloco ausente,
+vazio, malformado ou grande demais, ou uma sessão que falha, não impede o
+pedido: o corpo cai no template.
 
 Falha ou não-aprovação abre **Refazer / Outro — dizer o que fazer / Parar**;
 bloqueio abre o mesmo menu com **Pular este step** a mais. "Outro" injeta a
@@ -405,7 +411,14 @@ branch teve commit, o Pulse faz `git push -u origin`; sem Autocommit nada é
 publicado, mesmo que o agente tenha commitado sozinho. Com PR/MR ligado, abre o
 pedido **em draft** no GitHub (`gh pr create --draft`) ou no GitLab
 (`glab mr create --draft`) contra o `origin/HEAD` (sem ele, o pedido não abre e
-a run avisa), com o corpo de `workflow_defs.pull_request_template`. Um step com
+a run avisa). O corpo segue o template do repositório na branch default
+(`.github/pull_request_template.md` e os caminhos irmãos no GitHub, ou
+`.gitlab/merge_request_templates/Default.md` no GitLab); sem arquivo, usa
+`workflow_defs.pull_request_template`, e com a coluna vazia o modelo padrão do
+Pulse. Um turno do agente preenche as seções que o pedido, os commits e os
+resumos dos steps sustentam. O título é Conventional Commits em inglês: o
+título da run quando já está nesse formato, senão o assunto do commit mais
+antigo que estiver, senão o título da run ou a branch. Um step com
 `opens_request` abre esse draft assim que a última unidade dele termina — na
 semente, a última task de `implement` em `new-issue` — e o worktree continua
 para os steps seguintes. O fim da run faz push de novo, para os commits
@@ -425,7 +438,7 @@ não muda. A run grava título, descrição e as opções em `runs` ao nascer
 as anteriores, desligar Worktree desliga as seguintes), e uma run retomada usa
 as **suas** opções, não as que o projeto tiver depois. Run gravada antes disso
 tem as colunas nulas e segue o projeto, como seguia. O título dá nome à run no
-histórico e ao PR/MR; o prompt que os agentes leem é título e descrição juntos
+histórico; o prompt que os agentes leem é título e descrição juntos
 ([`TaskBrief`](pulse/domain/task_brief.py)), em `{{user_prompt}}`.
 
 A branch é lida nos três casos, inclusive sem worktree, e é isso que faz a
@@ -650,7 +663,7 @@ pelas portas ([ADR 0002](docs/adr/0002-engine-depends-on-ports.md)). O porquê d
 | [`pulse/orchestrator/menus.py`](pulse/orchestrator/menus.py) | O que a pessoa decide quando um step não fecha: refazer, orientar, pular ou parar |
 | [`pulse/orchestrator/worktree.py`](pulse/orchestrator/worktree.py) | Onde a run trabalha: raiz ou worktree próprio |
 | [`pulse/orchestrator/loops.py`](pulse/orchestrator/loops.py), [`fanout.py`](pulse/orchestrator/fanout.py) | Aplica na run a rodada ou o fim do laço, e expande o fan-out de itens |
-| [`pulse/orchestrator/agent_text.py`](pulse/orchestrator/agent_text.py) | Os dois textos que o próprio Pulse escreve |
+| [`pulse/orchestrator/agent_text.py`](pulse/orchestrator/agent_text.py) | Os textos que o próprio Pulse escreve, inclusive o do corpo do PR/MR |
 | [`pulse/orchestrator/render.py`](pulse/orchestrator/render.py) | Engine `{{placeholder}}` |
 | [`pulse/orchestrator/wording.py`](pulse/orchestrator/wording.py) | O que o motor diz ao usuário: avisos da run, menu de step, motivo de não concluir ([ADR 0004](docs/adr/0004-texto-de-tela-mora-com-quem-o-compoe.md)) |
 

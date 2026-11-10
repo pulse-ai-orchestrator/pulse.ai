@@ -228,7 +228,41 @@ def test_a_database_at_version_3_gains_the_factory_pull_request_template(tmp_pat
         assert schema_version(connection) == LATEST
         rows = connection.execute("SELECT id, pull_request_template FROM workflow_defs").fetchall()
         assert rows
-        assert all("{{prompt}}" in str(row["pull_request_template"]) for row in rows)
+        assert all("## Resumo" in str(row["pull_request_template"]) for row in rows)
+
+
+def test_a_database_at_version_7_replaces_only_the_stock_pull_request_template(
+    tmp_path: Path,
+) -> None:
+    """An upgrade moves the factory body forward and leaves a template the user edited."""
+    from pulse.store.factory import previous_pull_request_template, pull_request_template
+
+    path = tmp_path / "v7.db"
+    connect(path).close()
+    with _raw(path) as connection:
+        connection.execute("PRAGMA user_version = 7")
+        rows = connection.execute("SELECT id FROM workflow_defs ORDER BY id").fetchall()
+        stock, edited = str(rows[0]["id"]), str(rows[1]["id"])
+        connection.execute(
+            "UPDATE workflow_defs SET pull_request_template = ? WHERE id = ?",
+            (previous_pull_request_template(), stock),
+        )
+        connection.execute(
+            "UPDATE workflow_defs SET pull_request_template = ? WHERE id = ?",
+            ("editado pelo time", edited),
+        )
+
+    connect(path).close()
+
+    with _raw(path) as connection:
+        current = {
+            str(row["id"]): str(row["pull_request_template"])
+            for row in connection.execute("SELECT id, pull_request_template FROM workflow_defs")
+        }
+
+    assert current[stock] == pull_request_template()
+    assert current[stock] != previous_pull_request_template()
+    assert current[edited] == "editado pelo time"
 
 
 def test_a_database_at_version_5_keys_artifacts_by_step_without_losing_any(tmp_path: Path) -> None:

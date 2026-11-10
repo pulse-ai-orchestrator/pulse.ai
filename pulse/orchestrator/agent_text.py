@@ -147,6 +147,65 @@ def build_outcome_reminder_prompt(*, step_id: str) -> str:
     return _OUTCOME_REMINDER.format(step_id=step_id)
 
 
+_PULL_REQUEST = """\
+## Corpo do pedido
+
+Preencha o modelo abaixo para o corpo do pull request ou merge request.
+Mantenha os títulos e a ordem das seções. Escreva uma seção somente quando o
+material desta mensagem sustenta o texto. Onde o modelo manda omitir o que não
+se aplica, omita. Onde ele deixa espaço para o que não houve, escreva N/A.
+Não invente captura de tela, flag, migração, risco nem passo de teste.
+Não deixe `{{{{...}}}}` no texto.
+
+Responda apenas com o bloco, e o markdown preenchido dentro dele.
+Não use uma cerca de três crases dentro do bloco.
+
+```pulse:pull-request
+(o markdown preenchido)
+```
+
+### Modelo
+
+{template}
+
+### Pedido
+
+{prompt}
+
+### Branch
+
+{branch}
+
+### Commits
+
+{commits}
+
+### Resumos dos steps
+
+{summaries}
+"""
+
+
+def build_pull_request_prompt(
+    *,
+    template: str,
+    prompt: str,
+    branch: str,
+    commits: list[str],
+    summaries: list[str],
+) -> str:
+    """Ask the agent to fill the chosen template from the run, and nothing beyond it."""
+    listed = "\n".join(f"- {subject}" for subject in commits) or "(nenhum)"
+    told = "\n\n".join(summaries) or "(nenhum)"
+    return _PULL_REQUEST.format(
+        template=template.strip() or "(sem modelo)",
+        prompt=prompt.strip() or "(sem pedido)",
+        branch=branch or "(sem branch)",
+        commits=listed,
+        summaries=told,
+    )
+
+
 def guidance_block(guidance: str) -> str:
     """Guidance the user wrote when asking to retry a step."""
     text = guidance.strip()
