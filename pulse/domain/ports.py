@@ -399,7 +399,7 @@ class Workspace(Protocol):
         ...
 
     def open_pull_request(self, *, branch: str, title: str, body: str) -> None:
-        """Open a pull request or merge request for `branch` on `origin`."""
+        """Open a draft pull request or merge request for `branch` on `origin`."""
         ...
 
 

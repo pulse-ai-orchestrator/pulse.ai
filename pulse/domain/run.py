@@ -274,6 +274,7 @@ class RunRecord:
     description: str = ""
     # None for a run stored before runs kept their own options: it follows the project.
     git: GitOptions | None = None
+    request_opened: bool = False
     steps: list[StepRecord] = field(default_factory=list)
     _removed: set[str] = field(default_factory=set, init=False, repr=False, compare=False)
 
@@ -386,6 +387,10 @@ class RunRecord:
     def forget_removed_steps(self) -> None:
         """Called by storage once the deletions are committed."""
         self._removed.clear()
+
+    def note_request_opened(self) -> None:
+        """The draft for this branch is already on the forge."""
+        self.request_opened = True
 
     def work_in(
         self, *, worktree_path: str, branch: str, owns: bool = False, base: str = ""
