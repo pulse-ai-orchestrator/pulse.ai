@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from typing import NamedTuple
 
 from pulse.domain.control import RUN_STOPPED, RunControl
 from pulse.domain.git_options import NO_GIT_OPTIONS, GitOptions
@@ -60,6 +61,19 @@ from pulse.replies.approval import format_summary
 
 class EmptyWorkflow(ValueError):
     """A definition with no step: there is nothing to run."""
+
+
+class UnitsResult(NamedTuple):
+    """How one definition step ended.
+
+    `exit_code` is set when the run must stop. A loop that breaks out leaves
+    `finished` off, so the caller does not publish from it; `next_index` is where
+    the walk over the definition goes next.
+    """
+
+    exit_code: int | None
+    finished: bool
+    next_index: int
 
 
 def run_workflow(
@@ -184,7 +198,7 @@ def _execute(wiring: Wiring, *, definition: WorkflowDef, run: RunRecord) -> int:
             wiring.runs.save(run)
             sync_steps(wiring, run)
 
-            exit_code, finished, index = _run_units(
+            result = _run_units(
                 wiring,
                 definition=definition,
                 run=run,
@@ -193,9 +207,10 @@ def _execute(wiring: Wiring, *, definition: WorkflowDef, run: RunRecord) -> int:
                 at=at,
                 index=index,
             )
-            if exit_code is not None:
-                return exit_code
-            if finished and definition_step.opens_request:
+            if result.exit_code is not None:
+                return result.exit_code
+            index = result.next_index
+            if result.finished and definition_step.opens_request:
                 publish_ready_request(wiring, run, template=definition.pull_request_template)
 
         run.retire_steps_outside({step.step_id for step in definition.steps})
@@ -221,13 +236,8 @@ def _run_units(
     loops: dict[int, Loop],
     at: int,
     index: int,
-) -> tuple[int | None, bool, int]:
-    """Run every unit of one definition step.
-
-    Returns the exit code when the run must stop, whether every unit finished,
-    and the index the loop may have moved. A loop that breaks out leaves the
-    step unfinished, so the caller does not publish from it.
-    """
+) -> UnitsResult:
+    """Run every unit of one definition step."""
     for step, item in units:
         record = run.add_step(
             StepRecord(
@@ -245,7 +255,7 @@ def _run_units(
             notify(wiring, wording.RUN_STOPPED_BY_USER)
             run.end(RUN_STOPPED)
             wiring.runs.save(run)
-            return RUN_STOPPED, False, index
+            return UnitsResult(RUN_STOPPED, finished=False, next_index=index)
 
         loop = loops.get(at)
         opens_loop = loop is not None and loop.opens(at)
@@ -261,25 +271,24 @@ def _run_units(
         if exit_code != 0:
             run.end(exit_code)
             wiring.runs.save(run)
-            return exit_code, False, index
+            return UnitsResult(exit_code, finished=False, next_index=index)
 
         if signal == LoopSignal.CLOSE and loop is not None and opens_loop:
             index = close_loop(run, definition, loop)
             wiring.runs.save(run)
             sync_steps(wiring, run)
             notify(wiring, wording.loop_closed(record.label))
-            return None, False, index
+            return UnitsResult(None, finished=False, next_index=index)
 
         if signal == LoopSignal.REPEAT and loop is not None and loop.closes(at):
             target, message = repeat_loop(run, definition, loop, record.label)
             wiring.runs.save(run)
             notify(wiring, message)
             if target is not None:
-                index = target
                 sync_steps(wiring, run)
-                return None, False, index
+                return UnitsResult(None, finished=False, next_index=target)
 
-    return None, True, index
+    return UnitsResult(None, finished=True, next_index=index)
 
 
 def _run_step(
