@@ -103,6 +103,10 @@ def describing_pull_request() -> str:
     return "Descrição do pedido"
 
 
+def pull_request_draft_failed(error: str) -> str:
+    return f"O agente não descreveu o pedido, que abre com o modelo: {error}"
+
+
 def worktree_left_dirty() -> str:
     return "A pasta do worktree ficou: ainda há alteração sem commit"
 

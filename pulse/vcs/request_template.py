@@ -20,38 +20,36 @@ GITHUB_TEMPLATE_PATHS: tuple[str, ...] = (
     "pull_request_template.md",
     "PULL_REQUEST_TEMPLATE.md",
 )
-GITHUB_TEMPLATE_DIRECTORY = ".github/PULL_REQUEST_TEMPLATE"
-GITLAB_DEFAULT_TEMPLATE = ".gitlab/merge_request_templates/Default.md"
+GITLAB_TEMPLATE_DIRECTORY = ".gitlab/merge_request_templates"
+GITLAB_DEFAULT_NAME = "default.md"
 _ORIGIN_HEAD = "refs/remotes/origin/HEAD"
 
 
-def candidate_paths(*, forge: str, directory_file: str = "") -> tuple[str, ...]:
+def candidate_paths(*, forge: str, gitlab_default: str = "") -> tuple[str, ...]:
     """Paths checked for one forge. An unknown forge checks GitHub and then GitLab."""
     paths: list[str] = []
     if forge != "gitlab":
         paths.extend(GITHUB_TEMPLATE_PATHS)
-        if directory_file:
-            paths.append(directory_file)
-    if forge != "github":
-        paths.append(GITLAB_DEFAULT_TEMPLATE)
+    if forge != "github" and gitlab_default:
+        paths.append(gitlab_default)
     return tuple(paths)
 
 
-def select_template(files: Mapping[str, str], *, forge: str, directory_file: str = "") -> str:
+def select_template(files: Mapping[str, str], *, forge: str, gitlab_default: str = "") -> str:
     """First non-blank template in forge order, or empty when the project has none."""
-    for path in candidate_paths(forge=forge, directory_file=directory_file):
+    for path in candidate_paths(forge=forge, gitlab_default=gitlab_default):
         text = files.get(path, "").strip()
         if text:
             return text
     return ""
 
 
-def lone_directory_template(names: list[str]) -> str:
-    """The single markdown file in GitHub's template folder, or empty when it is not unique."""
-    prefix = f"{GITHUB_TEMPLATE_DIRECTORY}/"
-    markdown = [name for name in names if _directory_markdown(name, prefix)]
-    if len(markdown) == 1:
-        return markdown[0]
+def gitlab_default_template(names: list[str]) -> str:
+    """GitLab's `Default.md` in its template folder, whatever its case, or empty."""
+    prefix = f"{GITLAB_TEMPLATE_DIRECTORY}/"
+    for name in names:
+        if name.startswith(prefix) and name[len(prefix) :].lower() == GITLAB_DEFAULT_NAME:
+            return name
     return ""
 
 
@@ -59,21 +57,12 @@ def load_request_template(repo: Path) -> str:
     """Template text on the default branch. A missing file is an empty string, not an error."""
     ref = _template_ref(repo)
     forge = _forge(repo)
-    directory = _directory_file(repo, ref, forge)
+    gitlab_default = _gitlab_default(repo, ref, forge)
     files = {
         path: _read(["show", f"{ref}:{path}"], cwd=repo)
-        for path in candidate_paths(forge=forge, directory_file=directory)
+        for path in candidate_paths(forge=forge, gitlab_default=gitlab_default)
     }
-    return select_template(files, forge=forge, directory_file=directory)
-
-
-def _directory_markdown(name: str, prefix: str) -> bool:
-    if not name.startswith(prefix):
-        return False
-    rest = name[len(prefix) :]
-    if not rest or "/" in rest or rest in {".", ".."}:
-        return False
-    return rest.lower().endswith(".md")
+    return select_template(files, forge=forge, gitlab_default=gitlab_default)
 
 
 def _template_ref(repo: Path) -> str:
@@ -90,9 +79,8 @@ def _forge(repo: Path) -> str:
     return forge_of(url, glab_host=glab_host())
 
 
-def _directory_file(repo: Path, ref: str, forge: str) -> str:
-    if forge == "gitlab":
+def _gitlab_default(repo: Path, ref: str, forge: str) -> str:
+    if forge == "github":
         return ""
-    listed = _read(["ls-tree", "--name-only", ref, GITHUB_TEMPLATE_DIRECTORY], cwd=repo)
-    names = [line.strip() for line in listed.splitlines() if line.strip()]
-    return lone_directory_template(names)
+    listed = _read(["ls-tree", "--name-only", ref, f"{GITLAB_TEMPLATE_DIRECTORY}/"], cwd=repo)
+    return gitlab_default_template([line.strip() for line in listed.splitlines()])

@@ -27,7 +27,7 @@ from pulse.domain.ports import (
 )
 from pulse.domain.run import RunRecord, RunStatus, StepRecord, StepStatus, utc_now
 from pulse.domain.task_brief import EMPTY_BRIEF, TaskBrief
-from pulse.vcs.request_template import select_template
+from pulse.vcs.request_template import gitlab_default_template, select_template
 
 
 class InMemoryRunRepository:
@@ -139,7 +139,6 @@ class FakeWorkspace:
         self.fail_request = False
         self.dirty = False
         self.template_files: dict[str, str] = {}
-        self.template_directory = ""
         self.forge = ""
 
     @property
@@ -224,7 +223,9 @@ class FakeWorkspace:
 
     def request_template(self, _cwd: Path) -> str:
         return select_template(
-            self.template_files, forge=self.forge, directory_file=self.template_directory
+            self.template_files,
+            forge=self.forge,
+            gitlab_default=gitlab_default_template(list(self.template_files)),
         )
 
     def lose_worktree(self, path: Path) -> None:

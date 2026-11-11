@@ -45,8 +45,9 @@ o mesmo texto de [`.github/pull_request_template.md`](../.github/pull_request_te
 Se o projeto tem template na branch default, esse arquivo é o modelo. Um turno
 do agente preenche as seções que se aplicam e devolve `pulse:pull-request`.
 Sem o bloco, o Pulse usa o template e, quando ele não cita `{{prompt}}`,
-`{{branch}}` ou `{{commits}}`, acrescenta o pedido e a lista de commits. O
-título do pedido é Conventional Commits em inglês.
+`{{branch}}` ou `{{commits}}`, acrescenta o pedido e a lista de commits; com a
+coluna vazia e sem template no projeto, o corpo é só o pedido e os commits. O
+título do pedido segue Conventional Commits.
 
 ## 1.1 A semente de fábrica
 
