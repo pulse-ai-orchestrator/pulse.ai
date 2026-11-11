@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from pulse.domain.control import RUN_STOPPED
 from pulse.domain.git_options import GitOptions
 from pulse.domain.run import RunStatus, StepRecord
 from pulse.domain.task_brief import TaskBrief
+from pulse.orchestrator import wording
 from pulse.orchestrator.delivery import pull_request_body
 from tests.conftest import make_workflow
 from tests.fakes import FakeAgentSession
@@ -46,14 +50,24 @@ def test_the_pull_request_body_renders_the_workflow_template():
     )
 
 
-def test_a_workflow_without_a_template_gets_the_standard_body_and_the_commits():
-    """An empty column is the Pulse template, with the task and the commits after it."""
+def test_a_workflow_without_a_template_gets_the_prompt_and_the_commits():
+    """An empty column has no structure to follow; the body still says what changed."""
     body = pull_request_body(
         "", prompt="Corrigir o login", branch="b", commits=["feat: add email validation"]
     )
 
-    assert body.startswith("## Resumo\n")
-    assert body.endswith("Corrigir o login\n\n- feat: add email validation\n")
+    assert body == "Corrigir o login\n\n- feat: add email validation"
+
+
+def test_a_template_without_keys_gets_the_prompt_and_the_commits_after_it():
+    body = pull_request_body(
+        "## Resumo\n\n<!-- livre -->\n",
+        prompt="Corrigir o login",
+        branch="b",
+        commits=["feat: add email validation"],
+    )
+
+    assert body == "## Resumo\n\n<!-- livre -->\n\nCorrigir o login\n\n- feat: add email validation"
 
 
 def test_a_delivered_step_commits_only_what_changed_and_publishes_the_branch(tmp_path: Path):
@@ -382,6 +396,98 @@ def test_a_missing_pull_request_block_still_opens_the_draft(tmp_path: Path):
     assert body.startswith("## Resumo\n\n<!-- vazio -->")
     assert "Corrigir o login" in body
     assert "- feat: add email validation" in body
+    assert wording.pull_request_draft_failed("caiu") in session.stream.messages
+
+
+class _StoppedWhileDescribing(FakeAgentSession):
+    """The user stops the run while the agent writes the request body."""
+
+    def draft_pull_request(self, *, prompt_text: str, **_kwargs) -> dict:
+        self.sent.append(prompt_text)
+        self.control.stop()
+        return {"stopReason": "cancelled", "phaseSummary": ""}
+
+
+def test_a_stop_during_the_request_turn_stops_the_run_without_opening_it(tmp_path: Path):
+    """A stop is a stop: no draft goes out, and the worktree stays for the resume."""
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar")],
+        requires_approval=False,
+        commit_types={"implement": "feat"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    session = _StoppedWhileDescribing([_delivered()])
+    session._before_turn = _editing(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == RUN_STOPPED
+    assert harness.workspace.requests == []
+    assert list(harness.workspace.worktrees.values()) == ["corrigir-o-login"]
+    assert wording.RUN_STOPPED_BY_USER in session.stream.messages
+
+
+def test_a_stop_before_the_request_turn_does_not_start_it(tmp_path: Path):
+    """A step that opens the request mid-run, then a stop: the end of the run asks nothing."""
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar")],
+        requires_approval=False,
+        commit_types={"implement": "feat"},
+        opens_request={"implement"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    session = _StoppedWhileDescribing([_delivered()])
+    session._before_turn = _editing(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == RUN_STOPPED
+    assert harness.workspace.requests == []
+    assert sum("pulse:pull-request" in text for text in session.sent) == 1
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "ci: create the GitHub release with its assets attached",
+        "chore: add [project.urls] to pyproject.toml",
+        "feat: implement T1",
+        "Fix(API)!: keep `session` alive: retry once",
+    ],
+)
+def test_any_conventional_commit_subject_titles_the_request(subject: str):
+    """Conventional Commits is case-insensitive and its description is free text."""
+    from pulse.orchestrator.delivery import pull_request_title
+
+    assert pull_request_title(title="Corrigir o login", branch="b", commits=[subject]) == subject
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Corrigir o login", "feat:missing space", "feat: ", "wip: something", "feat: one\ntwo"],
+)
+def test_a_title_outside_the_convention_is_not_the_request_title(title: str):
+    from pulse.orchestrator.delivery import pull_request_title
+
+    assert pull_request_title(title=title, branch="b", commits=[]) == (title.strip() or "b")
 
 
 def test_a_resumed_run_keeps_the_git_options_it_started_with(tmp_path: Path):

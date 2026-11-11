@@ -5,22 +5,20 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from pulse.domain.control import RUN_STOPPED
 from pulse.domain.ports import WorkspaceError
 from pulse.domain.run import RunRecord
 from pulse.domain.workflow import StepDef
 from pulse.orchestrator import wording
 from pulse.orchestrator.agent_text import build_pull_request_prompt
 from pulse.orchestrator.fanout import Item
-from pulse.orchestrator.pull_request_template import PULSE_PULL_REQUEST_TEMPLATE
-from pulse.orchestrator.render import PLACEHOLDER, TemplateError, fill_present
+from pulse.orchestrator.render import PLACEHOLDER, fill_present
 from pulse.orchestrator.turn import TurnResult
 from pulse.orchestrator.wiring import Wiring, notify
 from pulse.replies.pull_request import parse_pull_request
 
 _COMMIT_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
-_CONVENTIONAL_TITLE = re.compile(
-    rf"^({_COMMIT_TYPES})(\([a-z0-9][a-z0-9._/-]*\))?!?: [a-z0-9][a-z0-9 ,/'_-]*$"
-)
+_CONVENTIONAL_TITLE = re.compile(rf"(?:{_COMMIT_TYPES})(?:\([^()\s]+\))?!?: \S.*", re.IGNORECASE)
 _PULL_REQUEST_KEYS = frozenset({"prompt", "branch", "commits"})
 
 
@@ -79,8 +77,10 @@ def publish_ready_request(wiring: Wiring, run: RunRecord, *, template: str) -> N
 def publish_finished_run(wiring: Wiring, run: RunRecord, *, template: str) -> int | None:
     """Push, open the request if it is not open yet, and drop the local worktree.
 
-    `1` when the push fails. Push sits behind Autocommit: without it the user
-    never opted into publishing, even if the agent committed on its own.
+    `1` when the push fails, `RUN_STOPPED` when the user stopped the run while
+    the request was being written: the worktree stays for the resume. Push sits
+    behind Autocommit: without it the user never opted into publishing, even if
+    the agent committed on its own.
     """
     subjects = _subjects(wiring, run)
     if subjects is None:
@@ -93,6 +93,9 @@ def publish_finished_run(wiring: Wiring, run: RunRecord, *, template: str) -> in
         return 1
     if not run.request_opened and _open_request(wiring, run, subjects, template):
         run.note_request_opened()
+    if not wiring.control.checkpoint():
+        notify(wiring, wording.RUN_STOPPED_BY_USER)
+        return RUN_STOPPED
     _drop_local(wiring, run, cwd)
     return None
 
@@ -121,14 +124,10 @@ def pull_request_body(template: str, *, prompt: str, branch: str, commits: list[
     """
     listed = "\n".join(f"- {subject}" for subject in commits)
     context = {"prompt": prompt.strip(), "branch": branch, "commits": listed}
-    source = template.strip() and template or PULSE_PULL_REQUEST_TEMPLATE
-    filled = fill_present(source, context)
-    if _mentions_pull_request_key(source):
+    filled = fill_present(template, context)
+    if _mentions_pull_request_key(template):
         return filled
-    extra = "\n\n".join(part for part in (context["prompt"], listed) if part)
-    if not extra:
-        return filled
-    return f"{filled.rstrip()}\n\n{extra}\n"
+    return "\n\n".join(part for part in (filled.strip(), context["prompt"], listed) if part)
 
 
 def pull_request_title(*, title: str, branch: str, commits: list[str]) -> str:
@@ -149,29 +148,26 @@ def pull_request_title(*, title: str, branch: str, commits: list[str]) -> str:
 
 
 def _open_request(wiring: Wiring, run: RunRecord, subjects: list[str], template: str) -> bool:
-    if not wiring.auto_pull_request:
+    if not wiring.auto_pull_request or not wiring.control.checkpoint():
         return False
     try:
         chosen = _request_template(wiring, template)
         body = _describe_request(wiring, run, chosen, subjects)
+        if not wiring.control.checkpoint():
+            return False
         wiring.ports.workspace.open_pull_request(
             branch=run.branch,
             title=pull_request_title(title=run.title, branch=run.branch, commits=subjects),
             body=body,
         )
-    except (TemplateError, WorkspaceError) as error:
+    except WorkspaceError as error:
         notify(wiring, wording.pull_request_failed(str(error)))
         return False
     return True
 
 
 def _request_template(wiring: Wiring, workflow_template: str) -> str:
-    project = wiring.ports.workspace.request_template(wiring.exec_dir).strip()
-    if project:
-        return project
-    if workflow_template.strip():
-        return workflow_template
-    return PULSE_PULL_REQUEST_TEMPLATE
+    return wiring.ports.workspace.request_template(wiring.exec_dir).strip() or workflow_template
 
 
 def _describe_request(wiring: Wiring, run: RunRecord, template: str, commits: list[str]) -> str:
@@ -190,7 +186,8 @@ def _describe_request(wiring: Wiring, run: RunRecord, template: str, commits: li
                 summaries=_settled_summaries(run),
             ),
         )
-    except Exception:  # noqa: BLE001 - the agent session is the boundary; the draft still opens
+    except Exception as error:  # noqa: BLE001 - the agent session is the boundary; the draft still opens
+        notify(wiring, wording.pull_request_draft_failed(str(error)))
         return fallback
     filled = parse_pull_request(TurnResult.parse(raw).summary)
     return filled or fallback
@@ -210,8 +207,6 @@ def _mentions_pull_request_key(template: str) -> bool:
 
 
 def _conventional(text: str) -> bool:
-    if not text or text != text.lower() or any(ord(char) > 127 for char in text):
-        return False
     return _CONVENTIONAL_TITLE.fullmatch(text) is not None
 
 

@@ -413,12 +413,15 @@ pedido **em draft** no GitHub (`gh pr create --draft`) ou no GitLab
 (`glab mr create --draft`) contra o `origin/HEAD` (sem ele, o pedido não abre e
 a run avisa). O corpo segue o template do repositório na branch default
 (`.github/pull_request_template.md` e os caminhos irmãos no GitHub, ou
-`.gitlab/merge_request_templates/Default.md` no GitLab); sem arquivo, usa
-`workflow_defs.pull_request_template`, e com a coluna vazia o modelo padrão do
-Pulse. Um turno do agente preenche as seções que o pedido, os commits e os
-resumos dos steps sustentam. O título é Conventional Commits em inglês: o
-título da run quando já está nesse formato, senão o assunto do commit mais
-antigo que estiver, senão o título da run ou a branch. Um step com
+`.gitlab/merge_request_templates/Default.md`, sem diferenciar maiúsculas, no
+GitLab); sem arquivo, usa `workflow_defs.pull_request_template`, e com a coluna
+vazia o corpo é o pedido seguido dos commits. Um turno do agente preenche as
+seções que o pedido, os commits e os resumos dos steps sustentam; se a sessão
+falha, a run avisa e o draft abre com o template. Parar a run durante esse
+turno não abre o draft: a run termina parada e o worktree fica para retomar. O
+título segue Conventional Commits: o título da run quando já está nesse
+formato, senão o assunto do commit mais antigo que estiver, senão o título da
+run ou a branch. Um step com
 `opens_request` abre esse draft assim que a última unidade dele termina — na
 semente, a última task de `implement` em `new-issue` — e o worktree continua
 para os steps seguintes. O fim da run faz push de novo, para os commits

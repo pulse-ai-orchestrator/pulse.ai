@@ -96,8 +96,7 @@ def test_every_factory_step_renders_with_what_the_engine_offers():
 
 
 def test_the_factory_pull_request_template_is_the_repository_template():
-    """The seed, the engine fallback and the GitHub file are one template."""
-    from pulse.orchestrator.pull_request_template import PULSE_PULL_REQUEST_TEMPLATE
+    """The seed and the GitHub file are one template."""
     from pulse.store.factory import pull_request_template
 
     github = (
@@ -105,7 +104,6 @@ def test_the_factory_pull_request_template_is_the_repository_template():
     ).read_text(encoding="utf-8")
 
     assert pull_request_template() == github
-    assert PULSE_PULL_REQUEST_TEMPLATE == github
 
 
 def test_every_factory_pull_request_template_renders_with_what_the_engine_offers():

@@ -8,43 +8,50 @@ import pytest
 
 from pulse import vcs
 from pulse.vcs.request_template import (
-    GITLAB_DEFAULT_TEMPLATE,
+    gitlab_default_template,
     load_request_template,
-    lone_directory_template,
     select_template,
 )
 from tests.infra.test_worktree import make_repo
 
 pytestmark = pytest.mark.skipif(not vcs.git_available(), reason="git is not on PATH")
 
+GITLAB_DEFAULT = ".gitlab/merge_request_templates/Default.md"
+
 
 def test_github_ignores_the_gitlab_default_and_gitlab_ignores_github():
     files = {
         ".github/pull_request_template.md": "github",
-        GITLAB_DEFAULT_TEMPLATE: "gitlab",
+        GITLAB_DEFAULT: "gitlab",
     }
 
-    assert select_template(files, forge="github") == "github"
-    assert select_template(files, forge="gitlab") == "gitlab"
-    assert select_template(files, forge="") == "github"
+    assert select_template(files, forge="github", gitlab_default=GITLAB_DEFAULT) == "github"
+    assert select_template(files, forge="gitlab", gitlab_default=GITLAB_DEFAULT) == "gitlab"
+    assert select_template(files, forge="", gitlab_default=GITLAB_DEFAULT) == "github"
 
 
-def test_a_single_file_in_the_template_folder_is_the_template():
-    only = ".github/PULL_REQUEST_TEMPLATE/bug.md"
+def test_a_file_in_the_github_template_folder_is_not_the_template():
+    """GitHub fills the body from that folder only through the `template` query parameter."""
+    files = {".github/PULL_REQUEST_TEMPLATE/bug.md": "um só"}
 
-    assert lone_directory_template([only, ".github/PULL_REQUEST_TEMPLATE/notes.txt"]) == only
-    assert select_template({}, forge="github", directory_file=only) == ""
-    assert select_template({only: "um só"}, forge="github", directory_file=only) == "um só"
+    assert select_template(files, forge="github") == ""
 
 
-def test_several_files_in_the_template_folder_are_not_a_choice():
+@pytest.mark.parametrize("name", ["Default.md", "default.md", "DEFAULT.MD"])
+def test_the_gitlab_default_template_matches_in_any_case(name: str):
+    folder = ".gitlab/merge_request_templates"
+
+    assert gitlab_default_template([f"{folder}/bug.md", f"{folder}/{name}"]) == f"{folder}/{name}"
+
+
+def test_a_gitlab_folder_without_a_default_has_no_template():
     names = [
-        ".github/PULL_REQUEST_TEMPLATE/bug.md",
-        ".github/PULL_REQUEST_TEMPLATE/feature.md",
-        ".github/PULL_REQUEST_TEMPLATE/../escape.md",
+        ".gitlab/merge_request_templates/bug.md",
+        ".gitlab/merge_request_templates/nested/default.md",
+        ".gitlab/other/default.md",
     ]
 
-    assert lone_directory_template(names) == ""
+    assert gitlab_default_template(names) == ""
 
 
 def test_the_default_branch_template_is_read_from_git(tmp_path: Path):
@@ -58,6 +65,17 @@ def test_the_default_branch_template_is_read_from_git(tmp_path: Path):
     _git(repo, "commit", "-q", "-m", "template")
 
     assert load_request_template(repo) == "## Resumo\n\ndo repositório"
+
+
+def test_a_lowercase_gitlab_default_is_read_from_git(tmp_path: Path):
+    repo = make_repo(tmp_path / "repo")
+    folder = repo / ".gitlab" / "merge_request_templates"
+    folder.mkdir(parents=True)
+    (folder / "default.md").write_text("## O que muda\n", encoding="utf-8")
+    _git(repo, "add", ".gitlab")
+    _git(repo, "commit", "-q", "-m", "template")
+
+    assert load_request_template(repo) == "## O que muda"
 
 
 def test_a_repository_without_a_template_reads_as_empty(tmp_path: Path):
