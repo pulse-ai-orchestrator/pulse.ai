@@ -427,3 +427,93 @@ def test_a_resumed_run_does_not_open_a_second_request(tmp_path: Path):
     assert code == 0
     assert harness.workspace.events.count("request") == 1
     assert harness.runs.only().worktree_path == ""
+
+
+def _heal_on_verify(harness: EngineHarness, session: FakeAgentSession):
+    touch = _touch(harness, session)
+
+    def before(step_id: str) -> None:
+        if step_id == "verify":
+            harness.workspace.fail_push = False
+            harness.workspace.fail_request = False
+        return touch(step_id)
+
+    return before
+
+
+def _implement_then_verify() -> None:
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar"), ("verify", "Verificar")],
+        requires_approval=False,
+        opens_request=("implement",),
+        commit_types={"implement": "feat", "verify": "docs"},
+    )
+
+
+def test_a_push_rejected_mid_run_warns_and_the_end_of_the_run_opens_the_draft(tmp_path: Path):
+    """Only the final push decides the run: a mid-run rejection is a warning, not a failure."""
+    _implement_then_verify()
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    harness.workspace.fail_push = True
+    session = FakeAgentSession([_delivered(), _delivered()])
+    session._before_turn = _heal_on_verify(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert "Não publiquei a branch: origin rejected the push" in session.stream.messages
+    assert harness.workspace.events == ["commit", "commit", "publish", "request", "remove"]
+    run = harness.runs.only()
+    assert run.status == RunStatus.COMPLETED
+    assert run.request_opened is True
+
+
+def test_a_request_refused_mid_run_is_opened_by_the_end_of_the_run(tmp_path: Path):
+    """The flag stays off until a request really exists, so the end of the run retries it."""
+    _implement_then_verify()
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    harness.workspace.fail_request = True
+    session = FakeAgentSession([_delivered(), _delivered()])
+    session._before_turn = _heal_on_verify(harness, session)
+    opened_mid_run: list[bool] = []
+    touch = session._before_turn
+
+    def before(step_id: str) -> None:
+        if step_id == "verify":
+            opened_mid_run.append(harness.runs.only().request_opened)
+        return touch(step_id)
+
+    session._before_turn = before
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert opened_mid_run == [False]
+    assert "Não abri o pedido: gh: not installed" in session.stream.messages
+    assert harness.workspace.events == [
+        "commit",
+        "publish",
+        "commit",
+        "publish",
+        "request",
+        "remove",
+    ]
+    assert len(harness.workspace.requests) == 1
+    assert harness.runs.only().request_opened is True
