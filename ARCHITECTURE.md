@@ -516,7 +516,7 @@ Só tela e interação. Não executa workflow no próprio processo.
 | [`pulse/tui/key_hints.py`](pulse/tui/key_hints.py) | A linha de atalhos no rodapé dos seletores (histórico, configurações, nova sessão) |
 | [`pulse/tui/screens/onboarding.py`](pulse/tui/screens/onboarding.py) | Assistente da primeira execução: checks, login, workspace e sonda ACP, via `/api/setup` e `/api/runtimes` |
 | [`pulse/tui/screens/history*.py`](pulse/tui/screens/) | Runs passadas e detalhe; a lista segue o seletor de sessões das CLIs de agentes (busca que dirige a lista, `❯` no item, Esc recua um nível) |
-| [`pulse/tui/history_rows.py`](pulse/tui/history_rows.py) | Como uma run vira item da lista: título e linha de fatos (workflow, status, idade, etapas, branch) — função pura do item e do relógio |
+| [`pulse/tui/history_rows.py`](pulse/tui/history_rows.py) | Como uma run vira item da lista: título e linha de fatos (workflow, status, idade, duração líquida, etapas, branch) — função pura do item e do relógio |
 | [`pulse/tui/state.py`](pulse/tui/state.py) | `CockpitState` — estado visual, só memória |
 | [`pulse/tui/artifact_tab.py`](pulse/tui/artifact_tab.py) | A aba de artefatos do cockpit: lista, seleção e painel (mixin de `CockpitState`) |
 | [`pulse/tui/strings.py`](pulse/tui/strings.py) | Todo texto visível da TUI, em português, num só módulo |

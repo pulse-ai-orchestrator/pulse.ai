@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -70,6 +71,7 @@ class HistoryItem:
     artifacts: list[str] = field(default_factory=list)
     branch: str = ""
     worktree_path: str = ""
+    duration_seconds: float | None = None
 
     @property
     def item_id(self) -> str:
@@ -89,6 +91,7 @@ class HistoryItem:
             "artifacts": list(self.artifacts),
             "branch": self.branch,
             "worktree_path": self.worktree_path,
+            "duration_seconds": self.duration_seconds,
             "steps": [step.to_dict() for step in self.steps],
         }
 
@@ -110,6 +113,7 @@ class HistoryItem:
             artifacts=[str(path) for path in data.get("artifacts") or ()],
             branch=str(data.get("branch") or ""),
             worktree_path=str(data.get("worktree_path") or ""),
+            duration_seconds=_duration_seconds(data.get("duration_seconds")),
         )
 
     @property
@@ -128,3 +132,12 @@ class HistoryItem:
         if not self.steps:
             return self.status is HistoryStatus.PENDING or self.status in LIVE_STATUSES
         return any(not step.settled for step in self.steps)
+
+
+def _duration_seconds(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    seconds = float(value)
+    if seconds < 0 or not math.isfinite(seconds):
+        return None
+    return seconds

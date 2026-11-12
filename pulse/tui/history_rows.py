@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 from rich.text import Text
 
+from pulse.history.events import format_elapsed
 from pulse.history.models import HistoryItem
 from pulse.history.status_labels import status_color, status_icon
 from pulse.tui import strings
@@ -61,6 +62,13 @@ def run_facts(item: HistoryItem, now: datetime) -> list[Text]:
     facts.append(Text(item.status_label, style=status_color(item.status)))
     if age := run_age(item.updated_at, now):
         facts.append(Text(age, style=TEXT_MUTED))
+    if item.duration_seconds is not None:
+        facts.append(
+            Text(
+                strings.HISTORY_DURATION.format(duration=format_elapsed(item.duration_seconds)),
+                style=TEXT_MUTED,
+            )
+        )
     if item.steps:
         done = sum(1 for step in item.steps if step.settled)
         facts.append(

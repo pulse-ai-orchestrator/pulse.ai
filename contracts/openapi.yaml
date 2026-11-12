@@ -225,7 +225,8 @@ paths:
             History items. Each carries branch and worktree_path: the branch the
             run worked on, and its own worktree when it ran isolated. Both are
             empty for a run that predates worktree support or a project outside
-            git.
+            git. duration_seconds is the net time already closed by the steps
+            (user wait excluded), or null until a step has recorded time.
   /api/history/{item_id}:
     get:
       summary: One history item

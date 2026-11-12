@@ -287,6 +287,20 @@ class RunRecord:
     def brief(self) -> TaskBrief:
         return TaskBrief(title=self.title, description=self.description)
 
+    def elapsed_seconds(self) -> float | None:
+        """Net time of every step that already has some; `None` when none does.
+
+        An open attempt stays out until it closes, the same number the sidebar
+        freezes. Time waiting on the user is already out of each step's total,
+        and a fan-out adds each task.
+        """
+        recorded = [
+            seconds for step in self.steps if (seconds := step.elapsed_seconds()) is not None
+        ]
+        if not recorded:
+            return None
+        return sum(recorded)
+
     @property
     def own_branch(self) -> str:
         """`pulse/<workflow>-<short run id>`: the branch this run's worktree is created on.
