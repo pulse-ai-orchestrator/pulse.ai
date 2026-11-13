@@ -372,6 +372,10 @@ anterior. Quando essa faixa tem mudança publicada, o workflow cria a tag
 com todos os commits da faixa nas notas. O release leva o wheel, o sdist, o
 SBOM CycloneDX e o `SHA256SUMS`, e o mesmo wheel e sdist vão para o
 [PyPI](https://pypi.org/project/pulse-orchestrator/) por Trusted Publishing.
+O PyPI vem antes do GitHub Release: os releases são imutáveis, e uma tag cujo
+release foi apagado nunca recebe outro. Por isso, se o envio ao PyPI falhar,
+basta reexecutar o job: ele pula os arquivos que já estão no PyPI e só cria o
+release quando ele ainda não existe.
 
 Nenhum commit volta para `main`: a versão do pacote vem da tag, lida no build
 pelo [setuptools-scm](https://setuptools-scm.readthedocs.io/). Fora de uma
