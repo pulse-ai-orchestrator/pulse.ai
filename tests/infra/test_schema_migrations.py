@@ -228,7 +228,41 @@ def test_a_database_at_version_3_gains_the_factory_pull_request_template(tmp_pat
         assert schema_version(connection) == LATEST
         rows = connection.execute("SELECT id, pull_request_template FROM workflow_defs").fetchall()
         assert rows
-        assert all("{{prompt}}" in str(row["pull_request_template"]) for row in rows)
+        assert all("## Resumo" in str(row["pull_request_template"]) for row in rows)
+
+
+def test_a_database_at_version_7_replaces_only_the_stock_pull_request_template(
+    tmp_path: Path,
+) -> None:
+    """An upgrade moves the factory body forward and leaves a template the user edited."""
+    from pulse.store.factory import previous_pull_request_template, pull_request_template
+
+    path = tmp_path / "v7.db"
+    connect(path).close()
+    with _raw(path) as connection:
+        connection.execute("PRAGMA user_version = 7")
+        rows = connection.execute("SELECT id FROM workflow_defs ORDER BY id").fetchall()
+        stock, edited = str(rows[0]["id"]), str(rows[1]["id"])
+        connection.execute(
+            "UPDATE workflow_defs SET pull_request_template = ? WHERE id = ?",
+            (previous_pull_request_template(), stock),
+        )
+        connection.execute(
+            "UPDATE workflow_defs SET pull_request_template = ? WHERE id = ?",
+            ("editado pelo time", edited),
+        )
+
+    connect(path).close()
+
+    with _raw(path) as connection:
+        current = {
+            str(row["id"]): str(row["pull_request_template"])
+            for row in connection.execute("SELECT id, pull_request_template FROM workflow_defs")
+        }
+
+    assert current[stock] == pull_request_template()
+    assert current[stock] != previous_pull_request_template()
+    assert current[edited] == "editado pelo time"
 
 
 def test_a_database_at_version_5_keys_artifacts_by_step_without_losing_any(tmp_path: Path) -> None:
@@ -265,6 +299,45 @@ def test_a_database_at_version_5_keys_artifacts_by_step_without_losing_any(tmp_p
             ("reviews/round-001.md", "review", "t1"),
             ("reviews/round-001.md", "fix", "t2"),
         ]
+
+
+def test_a_database_at_version_6_opens_the_request_on_the_factory_step(tmp_path: Path) -> None:
+    """An upgrade leaves factory rows in place, so the new column would stay off
+    without a backfill. A later edit is not rewritten on the next open.
+    """
+    from pulse.store.workflow_defs import get_workflow
+
+    path = tmp_path / "v6.db"
+    connect(path).close()
+    with _raw(path) as connection:
+        connection.execute("ALTER TABLE workflow_steps DROP COLUMN opens_request")
+        connection.execute("ALTER TABLE runs DROP COLUMN request_opened")
+        connection.execute("PRAGMA user_version = 6")
+
+    connect(path).close()
+
+    upgraded = get_workflow("new-issue", db_path=path)
+    assert upgraded is not None
+    opened = {step.step_id: step.opens_request for step in upgraded.steps}
+    assert opened["implement"] is True
+    assert opened["verify"] is False
+    quick = get_workflow("quick-fix", db_path=path)
+    assert quick is not None
+    assert all(not step.opens_request for step in quick.steps)
+    with _raw(path) as connection:
+        assert "request_opened" in _columns(connection, "runs")
+        connection.execute(
+            "UPDATE workflow_steps SET opens_request = 0 "
+            "WHERE workflow_id = 'new-issue' AND step_id = 'implement'"
+        )
+        connection.commit()
+
+    connect(path).close()
+
+    again = get_workflow("new-issue", db_path=path)
+    assert again is not None
+    implement = next(step for step in again.steps if step.step_id == "implement")
+    assert implement.opens_request is False
 
 
 def test_a_run_stored_before_runs_kept_git_options_reads_none(tmp_path):

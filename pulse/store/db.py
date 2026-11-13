@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS workflow_steps (
   repeat_from TEXT NOT NULL DEFAULT '',
   repeat_max INTEGER NOT NULL DEFAULT 0,
   commit_type TEXT NOT NULL DEFAULT '',
+  opens_request INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (workflow_id, step_id)
 );
 
@@ -141,7 +142,8 @@ CREATE TABLE IF NOT EXISTS runs (
   description TEXT NOT NULL DEFAULT '',
   use_worktree INTEGER,
   atomic_commits INTEGER,
-  auto_pull_request INTEGER
+  auto_pull_request INTEGER,
+  request_opened INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS runs_by_workspace
@@ -254,6 +256,21 @@ def _apply_run_brief(connection: sqlite3.Connection) -> set[tuple[str, str]]:
     return _add_columns(connection, columns)
 
 
+def _refresh_stock_pull_request_template(connection: sqlite3.Connection) -> set[tuple[str, str]]:
+    from pulse.store import factory
+
+    factory.replace_stock_pull_request_template(connection)
+    return set()
+
+
+def _apply_opens_request(connection: sqlite3.Connection) -> set[tuple[str, str]]:
+    columns = (
+        ("workflow_steps", "opens_request", "INTEGER NOT NULL DEFAULT 0"),
+        ("runs", "request_opened", "INTEGER NOT NULL DEFAULT 0"),
+    )
+    return _add_columns(connection, columns)
+
+
 def _key_artifacts_by_step(connection: sqlite3.Connection) -> set[tuple[str, str]]:
     connection.execute(
         """
@@ -331,6 +348,8 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(version=4, apply=_apply_pull_request_template),
     Migration(version=5, apply=_apply_run_brief),
     Migration(version=6, apply=_key_artifacts_by_step),
+    Migration(version=7, apply=_apply_opens_request),
+    Migration(version=8, apply=_refresh_stock_pull_request_template),
 )
 
 
@@ -406,6 +425,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
             factory.backfill_commit_types(connection)
         if ("workflow_defs", "pull_request_template") in added:
             factory.backfill_pull_request_templates(connection)
+        if ("workflow_steps", "opens_request") in added:
+            factory.backfill_opens_request(connection)
         factory.drop_approval_from_unattended_steps(connection)
         factory.inherit_policy_on_default_agent(connection)
         factory.drop_validation_from_implement(connection)

@@ -113,6 +113,7 @@ def _item(record: RunRecord) -> HistoryItem:
         ),
         branch=record.branch,
         worktree_path=record.worktree_path,
+        duration_seconds=record.elapsed_seconds(),
     )
 
 

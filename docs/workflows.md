@@ -17,7 +17,7 @@ workflow_defs     id, label, description, is_default, default_prompt,
                   pull_request_template
 workflow_steps    workflow_id, step_id, position, label,
                   agent_id, prompt_template, requires_approval, fan_out,
-                  commit_type
+                  commit_type, opens_request
 agent_defs        id, label, runtime, model, permission_policy, instructions
 ```
 
@@ -34,10 +34,20 @@ direto na run; vazio, ele abre o campo para o usuário descrever a tarefa.
 quando o step entrega. Vazio não commita. A opção só existe com Worktree
 ligado; PR/MR só existe com as duas.
 
-`pull_request_template` é o corpo do PR/MR que a run abre no fim, com
-`{{prompt}}`, `{{branch}}` e `{{commits}}` (um `- assunto` por linha). A fábrica
-semeia [`pulse/store/factory/pull_request.md`](../pulse/store/factory/pull_request.md);
-vazio, o corpo é o prompt seguido dos commits.
+`opens_request` marca o step em que o PR/MR abre. Ligado, o draft nasce quando
+a última unidade desse step termina (no `new-issue`, a última task de
+`implement`). Desligado em todo step, o draft abre só no fim da run. O pedido
+sai sempre em draft.
+
+`pull_request_template` é o corpo do PR/MR quando o repositório não tem o seu.
+A fábrica semeia [`pulse/store/factory/pull_request.md`](../pulse/store/factory/pull_request.md),
+o mesmo texto de [`.github/pull_request_template.md`](../.github/pull_request_template.md).
+Se o projeto tem template na branch default, esse arquivo é o modelo. Um turno
+do agente preenche as seções que se aplicam e devolve `pulse:pull-request`.
+Sem o bloco, o Pulse usa o template e, quando ele não cita `{{prompt}}`,
+`{{branch}}` ou `{{commits}}`, acrescenta o pedido e a lista de commits; com a
+coluna vazia e sem template no projeto, o corpo é só o pedido e os commits. O
+título do pedido segue Conventional Commits.
 
 ## 1.1 A semente de fábrica
 

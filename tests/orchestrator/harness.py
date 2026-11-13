@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from pulse.domain.control import RunControl
@@ -82,6 +83,26 @@ def delivered_turn(summary: str = "feito") -> dict[str, object]:
         "stopReason": "end_turn",
         "phaseSummary": f"{summary}\n\n```pulse:outcome\nstatus: done\n```",
     }
+
+
+def committing_turn(summary: str = "feito") -> dict[str, object]:
+    """Delivered turn that names the subject of its atomic commit."""
+    return {
+        "stopReason": "end_turn",
+        "phaseSummary": (
+            f"{summary}\n\n```pulse:outcome\nstatus: done\ncommit: add email validation\n```"
+        ),
+    }
+
+
+def editing_a_file(harness: EngineHarness, session: FakeAgentSession) -> Callable[[str], None]:
+    """Before each turn, change one file in the worktree the session opened."""
+
+    def before(_step_id: str) -> None:
+        if session.opened_in is not None:
+            harness.workspace.files[session.opened_in] = {"src/app.py": "changed"}
+
+    return before
 
 
 def blocked_turn(reason: str, *, needs: str = "") -> dict[str, object]:

@@ -93,6 +93,21 @@ def test_the_facts_line_shows_workflow_status_age_progress_and_branch() -> None:
     assert facts.strip() == "Demo · falhou · há 5 min · 1/3 etapas · ⎇ feat/token"
 
 
+def test_the_facts_line_shows_the_flow_duration_after_the_age() -> None:
+    """14:32 is the net time already closed, in the same words as a step timer."""
+    item = _item(duration_seconds=14 * 60 + 32)
+
+    facts = history_row(item, now=NOW, selected=False).plain.splitlines()[1]
+
+    assert facts.strip() == "Demo · falhou · há 5 min · duração 14:32"
+
+
+def test_a_closed_instant_still_shows_a_duration() -> None:
+    facts = history_row(_item(duration_seconds=0.0), now=NOW, selected=False).plain
+
+    assert "duração 00:00" in facts
+
+
 def test_a_run_without_steps_or_branch_omits_those_facts() -> None:
     facts = history_row(_item(), now=NOW, selected=False).plain.splitlines()[1]
 

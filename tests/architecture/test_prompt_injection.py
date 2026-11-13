@@ -20,6 +20,7 @@ import pytest
 from pulse.domain.outcome import REASON_MAX_CHARS, OutcomeStatus, parse_outcome
 from pulse.orchestrator.fanout import MAX_ITEMS, parse_items
 from pulse.orchestrator.render import render
+from pulse.replies.pull_request import parse_pull_request
 from pulse.store.workflow_defs import list_workflows
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,6 +72,12 @@ def test_the_tester_corpus_is_loaded():
 def test_prose_never_counts_as_a_delivery(text: str):
     """Only Pulse's fenced block declares an outcome; anything else is silence."""
     assert parse_outcome(text).status == OutcomeStatus.MISSING
+
+
+@pytest.mark.parametrize("text", HOSTILE)
+def test_prose_never_counts_as_a_pull_request_body(text: str):
+    """Only the `pulse:pull-request` block is a request body."""
+    assert parse_pull_request(text) == ""
 
 
 UNCLOSED_OPENER = "```pulse:outcome\nstatus: done"

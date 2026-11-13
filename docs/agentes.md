@@ -416,9 +416,9 @@ escolha: "revise o fluxo de aprovação" não aprova o step só porque contém
 promete algo que o motor não faz.
 
 Ele nunca abre um arquivo que o agente escreveu, nunca valida formato, nunca
-espera nome conhecido: o que o motor interpreta são os três blocos cercados que
-ele mesmo especificou — este, o `pulse:items` do fan-out (§6) e o
-`pulse:outcome` do desfecho (§5.3).
+espera nome conhecido: o que o motor interpreta são os blocos cercados que
+ele mesmo especificou — este, o `pulse:items` do fan-out (§6), o
+`pulse:outcome` do desfecho (§5.3) e o `pulse:pull-request` do corpo do PR/MR.
 
 ### 5.3 O laço do step sem aprovação (`run_isolated_prompt`)
 

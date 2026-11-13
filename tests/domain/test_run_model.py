@@ -285,6 +285,38 @@ def test_elapsed_of_an_open_round_is_what_earlier_rounds_carried():
     assert StepRecord(step_id="one", carried_seconds=30.0).elapsed_seconds() == 30.0
 
 
+def test_a_run_sums_each_step_that_already_has_time_and_skips_the_rest():
+    """The flow total is the sidebar's frozen time, including a fan-out's tasks.
+
+    An attempt still open contributes nothing until it closes. Zero is a real
+    duration: a step that started and ended together still counts.
+    """
+    start = datetime(2026, 10, 1, 10, 0, tzinfo=UTC)
+    closed = StepRecord(
+        step_id="plan",
+        status=StepStatus.DONE,
+        started_at=start,
+        ended_at=start + timedelta(minutes=10),
+        waiting_seconds=240.0,
+        carried_seconds=60.0,
+    )
+    instant = StepRecord(
+        step_id="check",
+        status=StepStatus.DONE,
+        started_at=start,
+        ended_at=start,
+    )
+    carried = StepRecord(step_id="review:T1", carried_seconds=30.0)
+    running = StepRecord(step_id="build", status=StepStatus.RUNNING, started_at=start)
+
+    assert _run(closed, carried, running).elapsed_seconds() == 60.0 + 360.0 + 30.0
+    assert _run(instant).elapsed_seconds() == 0.0
+
+
+def test_a_run_with_no_recorded_step_time_has_no_duration():
+    assert _run(StepRecord(step_id="one"), _running("two")).elapsed_seconds() is None
+
+
 def test_a_run_completes_only_when_every_step_settled():
     step = _running()
     run = _run(step)

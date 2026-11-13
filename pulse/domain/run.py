@@ -274,6 +274,7 @@ class RunRecord:
     description: str = ""
     # None for a run stored before runs kept their own options: it follows the project.
     git: GitOptions | None = None
+    request_opened: bool = False
     steps: list[StepRecord] = field(default_factory=list)
     _removed: set[str] = field(default_factory=set, init=False, repr=False, compare=False)
 
@@ -285,6 +286,20 @@ class RunRecord:
     @property
     def brief(self) -> TaskBrief:
         return TaskBrief(title=self.title, description=self.description)
+
+    def elapsed_seconds(self) -> float | None:
+        """Net time of every step that already has some; `None` when none does.
+
+        An open attempt stays out until it closes, the same number the sidebar
+        freezes. Time waiting on the user is already out of each step's total,
+        and a fan-out adds each task.
+        """
+        recorded = [
+            seconds for step in self.steps if (seconds := step.elapsed_seconds()) is not None
+        ]
+        if not recorded:
+            return None
+        return sum(recorded)
 
     @property
     def own_branch(self) -> str:
@@ -386,6 +401,10 @@ class RunRecord:
     def forget_removed_steps(self) -> None:
         """Called by storage once the deletions are committed."""
         self._removed.clear()
+
+    def note_request_opened(self) -> None:
+        """The draft for this branch is already on the forge."""
+        self.request_opened = True
 
     def work_in(
         self, *, worktree_path: str, branch: str, owns: bool = False, base: str = ""

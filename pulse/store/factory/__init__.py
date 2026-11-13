@@ -32,6 +32,7 @@ class FactoryStep:
     repeat_max: int = 0
     phase: str = ""
     commit_type: str = ""
+    opens_request: bool = False
 
     def id(self) -> str:
         return self.step_id or self.agent_id
@@ -72,7 +73,14 @@ WORKFLOWS: tuple[FactoryWorkflow, ...] = (
             FactoryStep("prd", "PRD", True),
             FactoryStep("techspec", "Techspec", True),
             FactoryStep("tasks", "Tasks", True),
-            FactoryStep("implement", "Implementar", False, fan_out=True, commit_type="feat"),
+            FactoryStep(
+                "implement",
+                "Implementar",
+                False,
+                fan_out=True,
+                commit_type="feat",
+                opens_request=True,
+            ),
             FactoryStep("verify", "Verificar", True, commit_type="docs"),
             FactoryStep(
                 "implement",
@@ -161,8 +169,13 @@ def _read(path: Path) -> str:
 
 
 def pull_request_template() -> str:
-    """PR/MR body a factory workflow opens: `{{prompt}}`, `{{branch}}`, `{{commits}}`."""
+    """PR/MR body a factory workflow opens. The agent fills the sections that apply."""
     return _read(factory_dir() / "pull_request.md")
+
+
+def previous_pull_request_template() -> str:
+    """The factory body shipped before the repository template became the standard."""
+    return _read(factory_dir() / "pull_request_v1.md")
 
 
 def _expand_includes(text: str) -> str:
@@ -282,8 +295,9 @@ def seed(connection: sqlite3.Connection) -> None:
         """
         INSERT OR IGNORE INTO workflow_steps
           (workflow_id, step_id, position, label, agent_id, prompt_template,
-           requires_approval, fan_out, repeat_from, repeat_max, commit_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           requires_approval, fan_out, repeat_from, repeat_max, commit_type,
+           opens_request)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
@@ -298,6 +312,7 @@ def seed(connection: sqlite3.Connection) -> None:
                 step.repeat_from,
                 int(step.repeat_max),
                 step.commit_type,
+                int(step.opens_request),
             )
             for workflow in WORKFLOWS
             for position, step in enumerate(workflow.steps, start=1)
@@ -364,6 +379,40 @@ def backfill_commit_types(connection: sqlite3.Connection) -> None:
          WHERE workflow_id = ? AND step_id = ? AND commit_type = ''
         """,
         rows,
+    )
+
+
+def backfill_opens_request(connection: sqlite3.Connection) -> None:
+    """Turn on `opens_request` where the column was just added and is still off.
+
+    `seed` does not rewrite existing rows, so an upgrade would leave the factory
+    step that opens the request unable to open it. A later edit stays: this runs
+    only on the migration that adds the column.
+    """
+    rows = [
+        (workflow.id, step.id())
+        for workflow in WORKFLOWS
+        for step in workflow.steps
+        if step.opens_request
+    ]
+    connection.executemany(
+        """
+        UPDATE workflow_steps
+           SET opens_request = 1
+         WHERE workflow_id = ? AND step_id = ? AND opens_request = 0
+        """,
+        rows,
+    )
+
+
+def replace_stock_pull_request_template(connection: sqlite3.Connection) -> None:
+    """Move factory workflows still on the previous stock body to the current one.
+
+    A template the user edited does not match the previous stock text and stays.
+    """
+    connection.execute(
+        "UPDATE workflow_defs SET pull_request_template = ? WHERE pull_request_template = ?",
+        (pull_request_template(), previous_pull_request_template()),
     )
 
 

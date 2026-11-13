@@ -6,52 +6,14 @@ from pathlib import Path
 
 from pulse.domain.git_options import GitOptions
 from pulse.domain.run import RunStatus, StepRecord
-from pulse.domain.task_brief import TaskBrief
-from pulse.orchestrator.delivery import pull_request_body
 from tests.conftest import make_workflow
 from tests.fakes import FakeAgentSession
-from tests.orchestrator.harness import EngineHarness, delivered_turn
-
-
-def _delivered(summary: str = "feito") -> dict[str, object]:
-    return {
-        "stopReason": "end_turn",
-        "phaseSummary": (
-            f"{summary}\n\n```pulse:outcome\nstatus: done\ncommit: add email validation\n```"
-        ),
-    }
-
-
-def _editing(harness: EngineHarness, session: FakeAgentSession):
-    def before(_step_id: str) -> None:
-        if session.opened_in is not None:
-            harness.workspace.files[session.opened_in] = {"src/app.py": "changed"}
-        return None
-
-    return before
-
-
-def test_the_pull_request_body_renders_the_workflow_template():
-    """The body is data on the workflow, so the engine knows no team's template."""
-    body = pull_request_body(
-        "Tarefa: {{prompt}}\nBranch {{branch}}\n{{commits}}",
-        prompt="Corrigir o login",
-        branch="corrigir-o-login",
-        commits=["feat: add email validation", "fix: keep the session"],
-    )
-
-    assert body == (
-        "Tarefa: Corrigir o login\nBranch corrigir-o-login\n"
-        "- feat: add email validation\n- fix: keep the session"
-    )
-
-
-def test_a_workflow_without_a_template_gets_the_prompt_and_the_commits():
-    body = pull_request_body(
-        "", prompt="Corrigir o login", branch="b", commits=["feat: add email validation"]
-    )
-
-    assert body == "Corrigir o login\n\n- feat: add email validation"
+from tests.orchestrator.harness import (
+    EngineHarness,
+    committing_turn,
+    delivered_turn,
+    editing_a_file,
+)
 
 
 def test_a_delivered_step_commits_only_what_changed_and_publishes_the_branch(tmp_path: Path):
@@ -66,8 +28,8 @@ def test_a_delivered_step_commits_only_what_changed_and_publishes_the_branch(tmp
     )
     harness = EngineHarness(tmp_path)
     harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
-    session = FakeAgentSession([_delivered()])
-    session._before_turn = _editing(harness, session)
+    session = FakeAgentSession([committing_turn()])
+    session._before_turn = editing_a_file(harness, session)
 
     code = harness.run(
         session,
@@ -128,8 +90,8 @@ def test_a_rejected_push_fails_the_run_and_keeps_the_worktree(tmp_path: Path):
     harness = EngineHarness(tmp_path)
     harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
     harness.workspace.fail_push = True
-    session = FakeAgentSession([_delivered()])
-    session._before_turn = _editing(harness, session)
+    session = FakeAgentSession([committing_turn()])
+    session._before_turn = editing_a_file(harness, session)
 
     code = harness.run(
         session,
@@ -157,8 +119,8 @@ def test_a_dirty_worktree_is_kept_after_a_successful_push(tmp_path: Path):
     harness = EngineHarness(tmp_path)
     harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
     harness.workspace.dirty = True
-    session = FakeAgentSession([_delivered()])
-    session._before_turn = _editing(harness, session)
+    session = FakeAgentSession([committing_turn()])
+    session._before_turn = editing_a_file(harness, session)
 
     code = harness.run(
         session,
@@ -215,7 +177,7 @@ def test_a_path_gone_after_the_step_is_left_out_of_its_commit(tmp_path: Path):
     )
     harness = EngineHarness(tmp_path)
     harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
-    session = FakeAgentSession([delivered_turn(), _delivered()])
+    session = FakeAgentSession([delivered_turn(), committing_turn()])
 
     def edit(step_id: str) -> None:
         files = harness.workspace.files
@@ -238,60 +200,6 @@ def test_a_path_gone_after_the_step_is_left_out_of_its_commit(tmp_path: Path):
     assert harness.workspace.committed == [
         ("corrigir-o-login", ["src/app.py"], "feat: add email validation")
     ]
-
-
-def test_the_pull_request_is_titled_with_the_run_title(tmp_path: Path):
-    """The branch is a slug; the request a reviewer reads carries the title the user wrote."""
-    make_workflow(
-        "demo",
-        steps=[("implement", "Implementar")],
-        requires_approval=False,
-        commit_types={"implement": "feat"},
-    )
-    harness = EngineHarness(tmp_path)
-    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
-    session = FakeAgentSession([_delivered()])
-    session._before_turn = _editing(harness, session)
-
-    code = harness.run(
-        session,
-        workflow_id="demo",
-        user_prompt="Corrigir o login\n\nerro 500",
-        use_worktree=True,
-        atomic_commits=True,
-        auto_pull_request=True,
-        branch="fix-login",
-        brief=TaskBrief(title="Corrigir o login", description="erro 500"),
-    )
-
-    assert code == 0
-    assert [(item["branch"], item["title"]) for item in harness.workspace.requests] == [
-        ("fix-login", "Corrigir o login")
-    ]
-
-
-def test_a_run_without_a_title_names_its_pull_request_after_the_branch(tmp_path: Path):
-    make_workflow(
-        "demo",
-        steps=[("implement", "Implementar")],
-        requires_approval=False,
-        commit_types={"implement": "feat"},
-    )
-    harness = EngineHarness(tmp_path)
-    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
-    session = FakeAgentSession([_delivered()])
-    session._before_turn = _editing(harness, session)
-
-    harness.run(
-        session,
-        workflow_id="demo",
-        user_prompt="Corrigir o login",
-        use_worktree=True,
-        atomic_commits=True,
-        auto_pull_request=True,
-    )
-
-    assert [item["title"] for item in harness.workspace.requests] == ["corrigir-o-login"]
 
 
 def test_a_resumed_run_keeps_the_git_options_it_started_with(tmp_path: Path):
@@ -320,3 +228,200 @@ def test_a_resumed_run_keeps_the_git_options_it_started_with(tmp_path: Path):
     assert code == 0
     assert run.worktree_path == ""
     assert harness.workspace.worktrees == {}
+
+
+def _items_turn() -> dict[str, object]:
+    return {
+        "stopReason": "end_turn",
+        "phaseSummary": (
+            "lista\n\n```pulse:items\nT1 — Um\nT2 — Dois\n```\n\n"
+            "```pulse:outcome\nstatus: done\n```"
+        ),
+    }
+
+
+def _touch(harness: EngineHarness, session: FakeAgentSession):
+    def edit(step_id: str) -> None:
+        if session.opened_in is None or step_id == "plan":
+            return None
+        name = step_id.replace(":", "-")
+        harness.workspace.files[session.opened_in] = {f"src/{name}.py": "x"}
+        return None
+
+    return edit
+
+
+def test_the_draft_opens_when_the_last_fan_out_unit_finishes(tmp_path: Path):
+    """Later steps still commit onto the branch; the request is not opened again."""
+    make_workflow(
+        "demo",
+        steps=[("plan", "Planejar"), ("run", "Implementar"), ("verify", "Verificar")],
+        requires_approval=False,
+        fan_out=("run",),
+        opens_request=("run",),
+        commit_types={"run": "feat", "verify": "docs"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    session = FakeAgentSession([_items_turn(), *[committing_turn()] * 3])
+    session._before_turn = _touch(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert harness.workspace.events == [
+        "commit",
+        "commit",
+        "publish",
+        "request",
+        "commit",
+        "publish",
+        "remove",
+    ]
+    assert len(harness.workspace.requests) == 1
+    run = harness.runs.only()
+    assert run.request_opened is True
+    assert run.worktree_path == ""
+
+
+def test_a_resumed_run_does_not_open_a_second_request(tmp_path: Path):
+    """The draft opened with the last task stays the only one after a resume."""
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar"), ("verify", "Verificar")],
+        requires_approval=False,
+        opens_request=("implement",),
+        commit_types={"implement": "feat", "verify": "docs"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    session = FakeAgentSession([committing_turn(), RuntimeError("caiu")])
+    session._before_turn = _touch(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 1
+    run_id = harness.runs.only().id
+    assert harness.runs.only().request_opened is True
+    assert harness.runs.only().worktree_path
+    assert len(harness.workspace.requests) == 1
+
+    resumed = FakeAgentSession([committing_turn()])
+    resumed._before_turn = _touch(harness, resumed)
+    code = harness.run(
+        resumed,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        resume_run_id=run_id,
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert harness.workspace.events.count("request") == 1
+    assert harness.runs.only().worktree_path == ""
+
+
+def _heal_on_verify(harness: EngineHarness, session: FakeAgentSession):
+    touch = _touch(harness, session)
+
+    def before(step_id: str) -> None:
+        if step_id == "verify":
+            harness.workspace.fail_push = False
+            harness.workspace.fail_request = False
+        return touch(step_id)
+
+    return before
+
+
+def _implement_then_verify() -> None:
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar"), ("verify", "Verificar")],
+        requires_approval=False,
+        opens_request=("implement",),
+        commit_types={"implement": "feat", "verify": "docs"},
+    )
+
+
+def test_a_push_rejected_mid_run_warns_and_the_end_of_the_run_opens_the_draft(tmp_path: Path):
+    """Only the final push decides the run: a mid-run rejection is a warning, not a failure."""
+    _implement_then_verify()
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    harness.workspace.fail_push = True
+    session = FakeAgentSession([committing_turn(), committing_turn()])
+    session._before_turn = _heal_on_verify(harness, session)
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert "Não publiquei a branch: origin rejected the push" in session.stream.messages
+    assert harness.workspace.events == ["commit", "commit", "publish", "request", "remove"]
+    run = harness.runs.only()
+    assert run.status == RunStatus.COMPLETED
+    assert run.request_opened is True
+
+
+def test_a_request_refused_mid_run_is_opened_by_the_end_of_the_run(tmp_path: Path):
+    """The flag stays off until a request really exists, so the end of the run retries it."""
+    _implement_then_verify()
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True)
+    harness.workspace.fail_request = True
+    session = FakeAgentSession([committing_turn(), committing_turn()])
+    session._before_turn = _heal_on_verify(harness, session)
+    opened_mid_run: list[bool] = []
+    touch = session._before_turn
+
+    def before(step_id: str) -> None:
+        if step_id == "verify":
+            opened_mid_run.append(harness.runs.only().request_opened)
+        return touch(step_id)
+
+    session._before_turn = before
+
+    code = harness.run(
+        session,
+        workflow_id="demo",
+        user_prompt="Corrigir o login",
+        use_worktree=True,
+        atomic_commits=True,
+        auto_pull_request=True,
+    )
+
+    assert code == 0
+    assert opened_mid_run == [False]
+    assert "Não abri o pedido: gh: not installed" in session.stream.messages
+    assert harness.workspace.events == [
+        "commit",
+        "publish",
+        "commit",
+        "publish",
+        "request",
+        "remove",
+    ]
+    assert len(harness.workspace.requests) == 1
+    assert harness.runs.only().request_opened is True

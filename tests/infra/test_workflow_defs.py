@@ -95,6 +95,17 @@ def test_every_factory_step_renders_with_what_the_engine_offers():
             render(step.prompt_template, first_step)
 
 
+def test_the_factory_pull_request_template_is_the_repository_template():
+    """The seed and the GitHub file are one template."""
+    from pulse.store.factory import pull_request_template
+
+    github = (
+        Path(__file__).resolve().parents[2] / ".github" / "pull_request_template.md"
+    ).read_text(encoding="utf-8")
+
+    assert pull_request_template() == github
+
+
 def test_every_factory_pull_request_template_renders_with_what_the_engine_offers():
     """The body is rendered at the end of a run; a placeholder the engine does not fill
     would leave the pull request unopened.
@@ -587,6 +598,8 @@ def test_feature_layer_is_a_capped_loop_fixed_with_the_implement_playbook():
     ]
     assert fix.repeat == RepeatRule(back_to="verify", max_rounds=3)
     assert (fix.agent_id, fix.requires_approval, fix.commit_type) == ("implement", False, "fix")
+    assert steps["implement"].opens_request is True
+    assert steps["verify"].opens_request is False
     assert "validation.md" in fix.prompt_template
     assert "next: repeat" in fix.prompt_template
     assert "next: close" not in fix.prompt_template

@@ -46,6 +46,12 @@ def test_both_adapters_implement_the_port(make):
     assert isinstance(make(), Workspace)
 
 
+def test_without_a_template_file_the_request_template_is_empty(make):
+    workspace = make()
+
+    assert workspace.request_template(workspace.root) == ""
+
+
 def test_a_repository_reports_its_branch(make):
     workspace = make()
 
