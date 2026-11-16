@@ -81,6 +81,11 @@ jobs:
           uv export --locked --no-dev --format cyclonedx1.5 -o dist/pulse.cdx.json
           sha256sum dist/* > "$RUNNER_TEMP/SHA256SUMS"
           mv "$RUNNER_TEMP/SHA256SUMS" dist/SHA256SUMS
+      - name: Publish to PyPI
+        run: >-
+          uv publish --trusted-publishing always
+          --check-url https://pypi.org/simple/
+          dist/*.whl dist/*.tar.gz
       - name: Create the GitHub release with its assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,7 +93,9 @@ jobs:
           RELEASE_TAG: ${{ needs.release.outputs.tag }}
           RELEASE_NOTES: ${{ needs.release.outputs.notes }}
         run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::notice title=Release already published::$RELEASE_TAG"
+            exit 0
+          fi
           printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/notes.md"
           gh release create "$RELEASE_TAG" dist/* --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/notes.md"
-      - name: Publish to PyPI
-        run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz

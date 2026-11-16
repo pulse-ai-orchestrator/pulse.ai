@@ -30,6 +30,8 @@ from pulse.tui.state import CockpitState
 from tests.conftest import served_log, store_step, wait_for_event
 from tests.orchestrator.test_run_context import _ReplayClient
 
+_HALF_SECOND = 0.5
+
 
 def _run_with_step(step_id: str = "one") -> RunRecord:
     return run_store.create_run(
@@ -506,7 +508,8 @@ def test_reattaching_mid_wait_freezes_the_clock_where_the_run_stopped():
         prompt_handler=NullPromptPort(),
         client=_ReplayClient([]),
     )
-    session._dispatch({"type": "run.awaiting", "waiting": True, "since": time.time() - 8 * 60})
+    since = step.started_at.timestamp() + 2 * 60 + _HALF_SECOND
+    session._dispatch({"type": "run.awaiting", "waiting": True, "since": since})
     stamp_live_elapsed(state, served_log(run.id))
 
     assert state.phases[0].elapsed_label() == "02:00"
