@@ -121,8 +121,8 @@ lista canônica — id da pasta → rótulo na UI:
 | `tasks` | Tasks | `new-issue` |
 | `implement` | Implementar | `new-issue` (fan-out; e `verify-fix`, laço do verify, fase `FIX.md`) |
 | `verify` | Verificar | `new-issue` (laço, depois da última task; fecha quando não sobra lacuna) |
-| `review` | Review | `new-issue` (laço), `review` (fase `STANDALONE.md`) |
-| `review-fix` | Fix review | `new-issue` (laço, fecha e pede a volta), `review` (fase `STANDALONE.md`) |
+| `review` | Review | `new-issue` (laço), `quick-fix` (fase `QUICK.md`), `review` (fase `STANDALONE.md`) |
+| `review-fix` | Fix review | `new-issue` (laço, fecha e pede a volta), `quick-fix` (fase `QUICK.md`), `review` (fase `STANDALONE.md`) |
 | `quick-plan` | Quick plan | `quick-fix` |
 | `quick-implement` | Quick implement | `quick-fix` |
 | `setup-interview` | Setup — entrevista | `setup-project` |
