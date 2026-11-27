@@ -12,8 +12,10 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
 
-from pulse.history.status_labels import status_color, status_icon, status_label
+from pulse.history.status_labels import status_color
 from pulse.tui import strings
+from pulse.tui.badges import status_badge
+from pulse.tui.palette import LIME, RAISED, TEXT, TEXT_DIM, TEXT_MUTED
 from pulse.tui.state import NAV_PHASE, CockpitState, PhaseItem, PhaseStatus
 
 if TYPE_CHECKING:
@@ -39,6 +41,37 @@ _ATTENTION = frozenset(
         "awaiting_input",
     }
 )
+_SETTLED = frozenset({PhaseStatus.DONE, PhaseStatus.SKIPPED})
+# Before the first layout the widget has no width; render for the narrowest sidebar.
+_FALLBACK_WIDTH = 28
+_NO_CLOCK = "--:--"
+
+
+def _row(left: Text, right: Text, width: int, background: str) -> Text:
+    """`left` and `right` pushed to the edges of one line, painted on `background`."""
+    row = Text()
+    row.append_text(left)
+    row.append(" " * max(1, width - left.cell_len - right.cell_len))
+    row.append_text(right)
+    if background:
+        row.stylize(f"on {background}")
+    row.append("\n")
+    return row
+
+
+def _fit(label: str, room: int) -> str:
+    room = max(4, room)
+    return label if len(label) <= room else f"{label[: room - 1]}…"
+
+
+def _group_status(statuses: list[PhaseStatus]) -> PhaseStatus:
+    """The fan-out's status: the most urgent of its tasks."""
+    for urgent in (PhaseStatus.FAILED, PhaseStatus.BLOCKED, PhaseStatus.RUNNING):
+        if urgent in statuses:
+            return urgent
+    if all(status in _SETTLED for status in statuses):
+        return PhaseStatus.DONE
+    return PhaseStatus.PENDING
 
 
 class PhaseSidebar(Widget):
@@ -82,18 +115,22 @@ class PhaseSidebar(Widget):
                 self.post_message(NavSelected(kind, index))
                 return
 
+    def _width(self) -> int:
+        width = self.content_region.width
+        return width if width > 0 else _FALLBACK_WIDTH
+
     def _render_phases(self, state: CockpitState) -> Text:
         output = Text()
         self._slots = []
         now = time.monotonic()
         line = 0
         if not state.phases:
-            output.append(f"{strings.SIDEBAR_NO_STEPS}\n", style="#888888")
+            output.append(f"{strings.SIDEBAR_NO_STEPS}\n", style=TEXT_MUTED)
             return output
 
-        for key, members in state.phase_groups():
+        for number, (key, members) in enumerate(state.phase_groups(), start=1):
             if key:
-                output.append_text(self._render_group(state, key, members))
+                output.append_text(self._render_group(state, key, members, number=number))
                 line += 2
             for index, phase in members:
                 self._slots.append((line, line + 2, NAV_PHASE, index))
@@ -104,7 +141,7 @@ class PhaseSidebar(Widget):
                         selected=index == state.selected_phase_index,
                         now=now,
                         nested=bool(key),
-                        trailing_blank=True,
+                        number=0 if key else number,
                     )
                 )
                 line += 3
@@ -115,42 +152,31 @@ class PhaseSidebar(Widget):
         state: CockpitState,
         key: str,
         members: list[tuple[int, PhaseItem]],
+        *,
+        number: int,
     ) -> Text:
-        """Fan-out header: the step name and how many tasks have settled."""
+        """Fan-out header: the step, its most urgent task status and how many settled."""
         statuses = [phase.status for _index, phase in members]
-        done = sum(1 for status in statuses if status in {PhaseStatus.DONE, PhaseStatus.SKIPPED})
-        if PhaseStatus.FAILED in statuses:
-            status = PhaseStatus.FAILED
-        elif PhaseStatus.BLOCKED in statuses:
-            status = PhaseStatus.BLOCKED
-        elif PhaseStatus.RUNNING in statuses:
-            status = PhaseStatus.RUNNING
-        elif done == len(statuses):
-            status = PhaseStatus.DONE
-        else:
-            status = PhaseStatus.PENDING
-
+        done = sum(1 for status in statuses if status in _SETTLED)
+        status = _group_status(statuses)
         shown = (
             "awaiting_input"
             if any(phase.awaiting_since is not None for _index, phase in members)
             else status.value
         )
-
-        output = Text()
-        if status == PhaseStatus.RUNNING:
-            output.append("▌ ", style="#D4AF37")
-        else:
-            output.append("  ", style="#333333")
         tone = status_color(shown)
-        name_style = tone if shown in _ATTENTION else "#E0E0E0"
-        label = f"{status_icon(shown)} {state.base_step_label(key) or key}"
-        if len(label) > 28:
-            label = f"{label[:27]}…"
-        output.append(label, style=name_style)
+        width = self._width()
+        head = Text()
+        head.append("▌ " if status == PhaseStatus.RUNNING else "  ", style=tone)
+        head.append(f"{number:02d} ", style=TEXT_MUTED)
+        count = Text(f"{done}/{len(members)}", style=f"bold {tone}")
+        room = width - head.cell_len - count.cell_len - 1
+        name_style = f"bold {tone}" if shown in _ATTENTION else f"bold {TEXT}"
+        head.append(_fit(state.base_step_label(key) or key, room), style=name_style)
+        output = _row(head, count, width, "")
+        output.append("     ")
+        output.append_text(status_badge(shown))
         output.append("\n")
-        output.append("   ")
-        output.append(status_label(shown), style=tone)
-        output.append(f" · {done}/{len(members)}\n", style="#888888")
         return output
 
     def _render_item(
@@ -161,45 +187,65 @@ class PhaseSidebar(Widget):
         selected: bool,
         now: float,
         nested: bool = False,
-        trailing_blank: bool = True,
+        number: int = 0,
     ) -> Text:
-        output = Text()
-        running = item.status == PhaseStatus.RUNNING
-        focused = selected and state.focus_target == "phases"
-        accent = running or selected
-        indent = "  " if nested else ""
-        if running:
-            output.append(f"{indent}▌ ", style="#D4AF37")
-        elif focused:
-            output.append(f"{indent}▌ ", style="#A2D729")
-        elif selected:
-            output.append(f"{indent}│ ", style="#A2D729")
-        else:
-            output.append(f"{indent}  ", style="#333333")
-
+        """Two lines and a spacer: name and clock, then the status badge and tokens."""
         shown = item.display_status()
         tone = status_color(shown)
-        name_style = tone if shown in _ATTENTION else ("#E0E0E0" if accent else "#888888")
+        attention = shown in _ATTENTION
+        focused = selected and state.focus_target == "phases"
+        width = self._width()
+        background = RAISED if selected else ""
+
+        head = Text("  " if nested else "")
+        if attention:
+            head.append("▌ ", style=tone)
+        elif focused:
+            head.append("▌ ", style=LIME)
+        elif selected:
+            head.append("│ ", style=LIME)
+        else:
+            head.append("  ")
+        lead = head.cell_len
+        if number:
+            head.append(f"{number:02d} ", style=TEXT_MUTED if item.status in _SETTLED else TEXT_DIM)
+
+        elapsed = item.elapsed_label(now)
+        clock = Text(elapsed or _NO_CLOCK, style=self._clock_style(item, tone, bool(elapsed)))
         rounds = f" ×{item.rounds}" if item.rounds > 1 else ""
-        label = f"{status_icon(shown)} {self._item_label(item, nested=nested)}"
-        max_len = (24 if nested else 28) - len(rounds)
-        if len(label) > max_len:
-            label = f"{label[: max_len - 1]}…"
-        output.append(label, style=name_style)
+        room = width - head.cell_len - clock.cell_len - len(rounds) - 1
+        head.append(
+            _fit(self._item_label(item, nested=nested), room),
+            style=self._name_style(item, tone, attention=attention, selected=selected),
+        )
         if rounds:
-            output.append(rounds, style="#D4AF37")
+            head.append(rounds, style=f"bold {status_color('awaiting_input')}")
+        output = _row(head, clock, width, background)
+
+        meta = Text(" " * (lead + (3 if number else 0)))
+        meta.append_text(status_badge(shown))
+        context = Text(state.context_label(item), style=TEXT_MUTED)
+        output.append_text(_row(meta, context, width, background))
         output.append("\n")
-        timer = item.elapsed_label(now) or "--:--"
-        meta_indent = "     " if nested else "   "
-        output.append(meta_indent)
-        output.append(status_label(shown), style=tone)
-        output.append(f" · {timer}", style="#888888")
-        if context := state.context_label(item):
-            output.append(f" · {context}", style="#888888")
-        output.append("\n")
-        if trailing_blank:
-            output.append("\n")
         return output
+
+    @staticmethod
+    def _clock_style(item: PhaseItem, tone: str, ticking: bool) -> str:
+        if not ticking:
+            return TEXT_DIM
+        if item.status in _SETTLED:
+            return f"bold {TEXT}"
+        return f"bold {tone}"
+
+    @staticmethod
+    def _name_style(item: PhaseItem, tone: str, *, attention: bool, selected: bool) -> str:
+        if attention:
+            return f"bold {tone}"
+        if selected:
+            return f"bold {TEXT}"
+        if item.status in _SETTLED:
+            return TEXT
+        return TEXT_MUTED
 
     @staticmethod
     def _item_label(item: PhaseItem, *, nested: bool) -> str:

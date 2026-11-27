@@ -250,12 +250,12 @@ def test_the_sidebar_nests_the_fan_out_items_under_the_step_name():
     sidebar = PhaseSidebar(state)
     lines = str(sidebar._render_phases(state)).splitlines()
 
-    assert any(line.strip().endswith("Implementar") for line in lines)
-    assert any("T1 · Criar o endpoint" in line for line in lines)
-    assert any("T2 · Montar o CSV" in line for line in lines)
-    assert any("1/2" in line for line in lines)
-    header = next(line for line in lines if line.endswith("Implementar"))
-    task = next(line for line in lines if "Criar o endpoint" in line)
+    header = next(line for line in lines if "Implementar" in line)
+    assert header.rstrip().endswith("1/2"), "the step name carries how many tasks settled"
+    # Unlaid-out, the sidebar draws at its narrowest, so long task names are cut.
+    assert any("T1 · Criar o" in line for line in lines)
+    assert any("T2 · Montar o" in line for line in lines)
+    task = next(line for line in lines if "T1 · Criar o" in line)
     assert _indent(task) > _indent(header)
 
 

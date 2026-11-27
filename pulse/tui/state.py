@@ -5,7 +5,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from pulse.domain.control import RUN_STOPPED
+from pulse.domain.control import RUN_BLOCKED, RUN_STOPPED
+from pulse.domain.run import RunStatus
 from pulse.history import log_wording
 from pulse.history.events import (
     ArtifactItem,
@@ -23,13 +24,6 @@ Listener = Callable[[], None]
 _FOCUS_CYCLE = ("phases", "stream", "artifact")
 NAV_PHASE = "phase"
 FANOUT_SEP = ":"
-
-
-def progress_bar(done: int, total: int, width: int = 10) -> str:
-    if total <= 0:
-        return ""
-    filled = max(0, min(width, int(round(width * done / total))))
-    return "#" * filled + "." * (width - filled)
 
 
 @dataclass
@@ -108,6 +102,31 @@ class CockpitState(ArtifactTab):
 
     def total_count(self) -> int:
         return len(self.phases)
+
+    def run_status(self) -> RunStatus:
+        """The one status that names the whole run, most urgent first.
+
+        Read from the steps too, so a run reopened from history (never
+        `running`, no exit code) still names itself.
+        """
+        statuses = {phase.status for phase in self.phases}
+        if self.awaiting_input or any(phase.awaiting_since is not None for phase in self.phases):
+            return RunStatus.AWAITING_INPUT
+        if self.stopped:
+            return RunStatus.STOPPED
+        if self.exit_code == RUN_BLOCKED or PhaseStatus.BLOCKED in statuses:
+            return RunStatus.BLOCKED
+        if PhaseStatus.FAILED in statuses or self.exit_code not in {None, 0}:
+            return RunStatus.FAILED
+        if PhaseStatus.RUNNING in statuses:
+            return RunStatus.RUNNING
+        if self.phases and self.done_count() == self.total_count():
+            return RunStatus.COMPLETED
+        return RunStatus.PENDING
+
+    def elapsed_seconds(self, now: float | None = None) -> float:
+        """Agent time of the run: every step's clock, net of waiting on the user."""
+        return sum(phase.elapsed_seconds(now) or 0.0 for phase in self.phases)
 
     def begin_phase(self, title: str, *, turn: int = 1) -> None:
         """`title` names the phase; a later `turn` shows as its continuation."""

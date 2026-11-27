@@ -13,7 +13,7 @@ from pulse.client.protocol import REPLAY_END
 from pulse.client.run_session import EngineRunSession
 from pulse.history.events import ContextUsage
 from pulse.tui.adapters.cockpit_sink import CockpitSink
-from pulse.tui.state import CockpitState
+from pulse.tui.state import CockpitState, PhaseStatus
 from tests.conftest import configure_from_db, make_workflow
 
 TWO = [("one", "Um"), ("two", "Dois")]
@@ -124,7 +124,7 @@ def test_attaching_to_a_run_rebuilds_the_context_from_the_replay():
 
 
 def test_the_sidebar_and_header_show_the_tokens():
-    """The step's tokens sit beside its running clock; the header carries the run's sum."""
+    """The step's tokens close its status line, under its clock; the header sums the run."""
 
     async def run() -> None:
         from textual.app import App, ComposeResult
@@ -151,11 +151,36 @@ def test_the_sidebar_and_header_show_the_tokens():
             await pilot.pause()
             assert app.query_one(AppHeader).run_label.endswith("· 42k tokens")
             running = sidebar._render_item(state, state.phases[0], selected=True, now=0.0)
-            meta_line = running.plain.splitlines()[1]
-            assert meta_line.endswith(" · 42k tokens")
+            clock_line, meta_line = running.plain.splitlines()[:2]
+            assert clock_line.endswith("00:00")
+            assert meta_line.endswith("42k tokens")
             assert (
                 "tokens"
                 not in sidebar._render_item(state, state.phases[1], selected=False, now=0.0).plain
             )
 
     asyncio.run(run())
+
+
+def test_the_sidebar_pins_the_clock_to_the_right_edge_and_paints_the_selection():
+    """Times line up in one column; the selected step reads as a raised card."""
+    from rich.style import Style
+
+    from pulse.tui.palette import RAISED
+    from pulse.tui.widgets.phase_sidebar import PhaseSidebar
+
+    state, _sink = _cockpit()
+    state.phases[0].status = PhaseStatus.DONE
+    state.phases[0].started_at, state.phases[0].ended_at = 0.0, 772.0
+    sidebar = PhaseSidebar(state)
+
+    chosen = sidebar._render_item(state, state.phases[0], selected=True, now=0.0, number=1)
+    other = sidebar._render_item(state, state.phases[1], selected=False, now=0.0, number=2)
+
+    clock_line = chosen.plain.splitlines()[0]
+    assert clock_line.startswith("▌ 01 Um")
+    assert clock_line.endswith("12:52")
+    assert len(clock_line) == len(other.plain.splitlines()[0])
+    assert other.plain.splitlines()[0].endswith("--:--")
+    painted = {Style.parse(str(span.style)).bgcolor for span in chosen.spans}
+    assert Style.parse(f"on {RAISED}").bgcolor in painted

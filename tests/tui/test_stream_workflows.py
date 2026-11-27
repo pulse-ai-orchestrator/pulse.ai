@@ -104,10 +104,13 @@ TOOL_SAMPLES: tuple[tuple[str, dict, LogKind, str], ...] = (
 )
 
 
-def _plain_tool_block(kind: str, target: str, *detail_lines: str) -> str:
-    lines = [f"v {kind}", f"  {target}"]
-    lines.extend(f"    {line}" for line in detail_lines)
-    return "\n".join(lines)
+def _plain_tool_line(kind: str, target: str) -> str:
+    """A settled call reads as one line: check, kind padded to a column, target."""
+    return f"✓ {kind:<7} {target}"
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
 
 
 def _render_plain(state: CockpitState) -> str:
@@ -170,10 +173,8 @@ def test_tool_kinds_pending_then_gray_block(workflow_id: str, sample: tuple):
     plain = _render_plain(state)
     assert expected_kind.value in plain
     assert target_snip in plain or "carregando" in plain or "…" in plain
-    kind_idx = plain.rfind(expected_kind.value)
-    assert kind_idx >= 0
-    after_kind = plain[kind_idx:]
-    assert "\n  " in after_kind
+    kind_line = next(line for line in plain.splitlines() if expected_kind.value in line)
+    assert target_snip in kind_line or "carregando" in kind_line or "…" in kind_line
 
     sink.handle_update(
         {
@@ -201,11 +202,8 @@ def test_tool_kinds_pending_then_gray_block(workflow_id: str, sample: tuple):
     assert state.entries[-1].pending is False
 
     plain_done = _render_plain(state)
-    assert f"v {expected_kind.value}" in plain_done
-    assert target_snip in plain_done
-    block_start = plain_done.rfind(f"v {expected_kind.value}")
-    block = plain_done[block_start : block_start + 240]
-    assert "\n  " in block
+    done_line = next(line for line in plain_done.splitlines() if f"✓ {expected_kind.value}" in line)
+    assert target_snip in done_line
     if expected_kind == LogKind.SEARCH:
         assert "2 files" in plain_done or "in docs" in plain_done
 
@@ -280,7 +278,7 @@ def test_placeholder_keeps_spinner_until_path(workflow_id: str, tmp_path: Path, 
     assert state.entries[-1].pending is True
     plain = _render_plain(state)
     assert "carregando…" in plain or "…" in plain
-    assert "v Read" not in plain or state.entries[-1].pending is True
+    assert "✓ Read" not in plain
 
     con = sqlite3.connect(db)
     blob = {
@@ -310,9 +308,7 @@ def test_placeholder_keeps_spinner_until_path(workflow_id: str, tmp_path: Path, 
     assert entry.pending is False
     assert entry.title.endswith("file.md")
     plain_done = _render_plain(state)
-    assert "v Read" in plain_done
-    assert f"{workflow_id}/file.md" in plain_done
-    assert "\n  " in plain_done[plain_done.rfind("v Read") :]
+    assert _plain_tool_line("Read", f"{workflow_id}/file.md") in plain_done
 
 
 @pytest.mark.parametrize("workflow_id", WORKFLOWS)
@@ -376,7 +372,7 @@ def test_textual_render_smoke_all_workflows(workflow_id: str):
             assert "Read" in content
             assert "Edit" in content
             assert "Write" in content
-            assert "v Read" in content or "Read" in content
+            assert "✓ Read" in content
             assert "\n  " in content or "  pulse/" in content or "cli.py" in content
             assert any(phase.label in phases for phase in holder["state"].phases)
             assert "executando" in phases or "pendente" in phases
@@ -415,17 +411,14 @@ def test_search_detail_gray_block_layout():
         }
     )
     plain = _render_plain(state)
-    expected_head = _plain_tool_block("Search", "“dashboard”")
-    assert expected_head.splitlines()[0] in plain
-    assert "“dashboard”" in plain
-    assert "in docs" in plain
-    assert "3 files" in plain
-    search_idx = plain.rfind("v Search")
-    block = plain[search_idx:]
-    lines = [line for line in block.splitlines() if line.strip()][:5]
-    assert lines[0].endswith("Search")
-    assert lines[1].startswith("  ")
-    assert lines[2].startswith("    ")
+    lines = [line for line in plain.splitlines() if line.strip()]
+    head = next(index for index, line in enumerate(lines) if "✓ Search" in line)
+    assert lines[head].endswith(_plain_tool_line("Search", "“dashboard”"))
+    detail = lines[head + 1 : head + 3]
+    assert "in docs" in detail[0]
+    assert "3 files" in detail[0]
+    target_column = lines[head].index("“dashboard”")
+    assert all(_indent(line) == target_column for line in detail), "details hang under the target"
 
 
 def test_log_stream_renders_only_selected_step():

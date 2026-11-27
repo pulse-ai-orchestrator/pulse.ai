@@ -21,7 +21,7 @@ from pulse.tui.screens.history_detail import HistoryDetailScreen
 from pulse.tui.screens.settings import SettingsScreen
 from pulse.tui.state import CockpitState
 from pulse.tui.theme import COCKPIT_CSS
-from pulse.tui.widgets.log_stream import LogStream
+from pulse.tui.widgets.app_header import AppHeader
 from tests.conftest import configure_from_db, make_workflow, served_log
 from tests.infra.test_worktree import make_repo, prepare
 
@@ -46,59 +46,43 @@ def _run_in(workspace: Path, *, run_id: str = "run-1", branch: str = "", worktre
     return record.id
 
 
-def test_stream_meta_shows_model_and_branch():
+def _header_where(state: CockpitState) -> str:
+    async def run() -> str:
+        from textual.app import App, ComposeResult
+
+        class Harness(App[None]):
+            CSS = COCKPIT_CSS
+
+            def compose(self) -> ComposeResult:
+                yield AppHeader()
+
+        app = Harness()
+        async with app.run_test(size=(140, 40)) as pilot:
+            app.query_one(AppHeader).sync_from_state(state)
+            await pilot.pause()
+            return str(app.query_one("#run-where").render())
+
+    return asyncio.run(run())
+
+
+def test_header_shows_model_and_branch():
     state = CockpitState()
     make_workflow("demo")
     configure_from_db(state, "demo")
     state.set_model("opus")
     state.set_branch("pulse/demo-abc123")
 
-    async def run() -> None:
-        from textual.app import App
-
-        class Harness(App[None]):
-            CSS = COCKPIT_CSS
-
-            def on_mount(self) -> None:
-                self.mount(LogStream(state, id="log-stream"))
-
-        app = Harness()
-        async with app.run_test(size=(140, 40)) as pilot:
-            await pilot.pause()
-            app.query_one(LogStream).sync_from_state(state, force=True)
-            await pilot.pause()
-            meta = str(app.query_one("#stream-meta").render())
-            assert "opus · pulse/demo-abc123" in meta
-
-    asyncio.run(run())
+    assert _header_where(state) == "branch pulse/demo-abc123 · opus"
 
 
-def test_without_branch_meta_is_unchanged():
-    """A project outside git gets no dangling separator after the model."""
+def test_without_branch_the_header_shows_only_the_model():
+    """A project outside git gets no dangling separator before the model."""
     state = CockpitState()
     make_workflow("demo")
     configure_from_db(state, "demo")
     state.set_model("opus")
 
-    async def run() -> None:
-        from textual.app import App
-
-        class Harness(App[None]):
-            CSS = COCKPIT_CSS
-
-            def on_mount(self) -> None:
-                self.mount(LogStream(state, id="log-stream"))
-
-        app = Harness()
-        async with app.run_test(size=(140, 40)) as pilot:
-            await pilot.pause()
-            app.query_one(LogStream).sync_from_state(state, force=True)
-            await pilot.pause()
-            meta = str(app.query_one("#stream-meta").render())
-            assert "opus" in meta
-            assert "·  " not in meta.split("opus")[-1]
-
-    asyncio.run(run())
+    assert _header_where(state) == "opus"
 
 
 def test_history_reopens_with_run_branch(tmp_path: Path):

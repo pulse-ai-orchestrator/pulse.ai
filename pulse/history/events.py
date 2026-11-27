@@ -92,8 +92,13 @@ class PhaseItem:
         user is excluded: the clock freezes at `awaiting_since` and past waits
         are subtracted via `waiting_total`.
         """
+        seconds = self.elapsed_seconds(now)
+        return "" if seconds is None else format_elapsed(seconds)
+
+    def elapsed_seconds(self, now: float | None = None) -> float | None:
+        """The seconds behind `elapsed_label`; `None` when the step shows no clock."""
         if self.started_at is None:
-            return ""
+            return None
         if self.ended_at is not None:
             end = self.ended_at
         elif self.awaiting_since is not None:
@@ -101,8 +106,8 @@ class PhaseItem:
         elif self.status == PhaseStatus.RUNNING:
             end = now or time.monotonic()
         else:
-            return ""
-        return format_elapsed(end - self.started_at - self.waiting_total)
+            return None
+        return max(0.0, end - self.started_at - self.waiting_total)
 
     def closed_seconds(self) -> float:
         """Closed time of this step, net of waiting. Zero if it never closed.

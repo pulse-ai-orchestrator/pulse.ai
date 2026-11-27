@@ -20,35 +20,59 @@ STATUS_LABELS: dict[str, str] = {
     "blocked": "bloqueado",
     "stopped": "parado",
     "done": "concluído",
+    "completed": "concluído",
     "skipped": "pulado",
     "failed": "falhou",
 }
 
+_PENDING = "#8C8C90"
+_RUNNING = "#38BDF8"
+_AWAITING = "#FBBF24"
+_DONE = "#4ADE80"
+_BLOCKED = "#FB923C"
+_STOPPED = "#A78BFA"
+_SKIPPED = "#6C7A89"
+_FAILED = "#F87171"
+
 STATUS_COLORS: dict[str, str] = {
-    "pending": "#888888",
-    "in_progress": "#A2D729",
-    "running": "#A2D729",
-    "awaiting_input": "#D4AF37",
-    "awaiting_approval": "#D4AF37",
-    "approved": "#7FB069",
-    "blocked": "#E8913A",
-    "stopped": "#9A8FC7",
-    "done": "#7FB069",
-    "skipped": "#6C7A89",
-    "failed": "#FF8A8A",
+    "pending": _PENDING,
+    "in_progress": _RUNNING,
+    "running": _RUNNING,
+    "awaiting_input": _AWAITING,
+    "awaiting_approval": _AWAITING,
+    "approved": _DONE,
+    "blocked": _BLOCKED,
+    "stopped": _STOPPED,
+    "done": _DONE,
+    "completed": _DONE,
+    "skipped": _SKIPPED,
+    "failed": _FAILED,
+}
+
+# Dark shade of each color, painted behind it so a status reads as a badge.
+STATUS_TINTS: dict[str, str] = {
+    _PENDING: "#232326",
+    _RUNNING: "#0C2A3A",
+    _AWAITING: "#3A2C06",
+    _DONE: "#12301F",
+    _BLOCKED: "#3A2008",
+    _STOPPED: "#241B3D",
+    _SKIPPED: "#1F2329",
+    _FAILED: "#3B1414",
 }
 
 STATUS_ICONS: dict[str, str] = {
-    "pending": "Ⅱ",
-    "in_progress": "▸",
-    "running": "▸",
+    "pending": "○",
+    "in_progress": "●",
+    "running": "●",
     "awaiting_input": "◆",
     "awaiting_approval": "◆",
     "approved": "✓",
     "blocked": "⊘",
     "stopped": "■",
     "done": "✓",
-    "skipped": "⏭",
+    "completed": "✓",
+    "skipped": "↷",
     "failed": "✗",
 }
 
@@ -73,6 +97,16 @@ def status_color(status: str | Enum) -> str:
 
 def status_icon(status: str | Enum) -> str:
     return STATUS_ICONS.get(normalize(status), FALLBACK_ICON)
+
+
+def status_tint(status: str | Enum) -> str:
+    """Dark shade of the status color, to paint behind it."""
+    return STATUS_TINTS.get(status_color(status), STATUS_TINTS[_PENDING])
+
+
+def status_badge_style(status: str | Enum) -> str:
+    """Rich style for a status badge: bold color over its own dark tint."""
+    return f"bold {status_color(status)} on {status_tint(status)}"
 
 
 LABEL_WIDTH = max(len(label) for label in STATUS_LABELS.values())

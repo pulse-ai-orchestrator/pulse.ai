@@ -13,9 +13,11 @@ from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
+from pulse.history.status_labels import status_color
 from pulse.tui import strings
 from pulse.tui.adapters.prompt_bridge import PromptKind, PromptRequest, format_prompt_reply
-from pulse.tui.palette import ERROR, ERROR_SOFT
+from pulse.tui.badges import status_badge
+from pulse.tui.palette import ERROR, ERROR_SOFT, TEXT, TEXT_DIM, TEXT_MUTED
 from pulse.tui.state import CockpitState, LogEntry, LogKind, PhaseStatus
 from pulse.tui.widgets.prompt_dock import PromptDock
 
@@ -29,6 +31,19 @@ _INLINE_RE = re.compile(r"`([^`]+)`|\*\*([^*]+)\*\*|__([^_]+)__")
 _ASSIST_INDENT = "  "
 _ASSIST_GUTTER = "│ "
 _VISIBLE_ENTRIES = 120
+_KIND_WIDTH = 7
+# One hue per kind of tool, so a scan of the log tells reading from changing from running.
+_KIND_COLORS: dict[LogKind, str] = {
+    LogKind.READ: "#2DD4BF",
+    LogKind.LIST: "#2DD4BF",
+    LogKind.SEARCH: "#60A5FA",
+    LogKind.EDIT: "#A2D729",
+    LogKind.WRITE: "#A2D729",
+    LogKind.SHELL: "#C084FC",
+}
+_TOOL_KINDS = frozenset(_KIND_COLORS) | {LogKind.TOOL}
+# Gutter, check mark, kind column and a space: details hang under the call's target.
+_DETAIL_INDENT = " " * (2 + 2 + _KIND_WIDTH + 1)
 
 
 def _assistant_line(text: str) -> Text:
@@ -94,6 +109,7 @@ class LogStream(Widget):
     def on_mount(self) -> None:
         self.sync_from_state(self._state, force=True)
         self.set_interval(0.08, self._tick_spinner)
+        self.set_interval(1.0, self._tick_header)
 
     def on_resize(self) -> None:
         self.sync_from_state(self._state, force=True)
@@ -146,6 +162,10 @@ class LogStream(Widget):
             return min(cap, border + title + prompt_lines + 3)
         return min(cap, border + title + prompt_lines + hint + 3)
 
+    def _tick_header(self) -> None:
+        """The step clock moves on its own, between the run's events."""
+        self.query_one("#stream-header", Static).update(_render_header(self._state))
+
     def _tick_spinner(self) -> None:
         if not any(entry.pending for entry in self._state.visible_entries()):
             return
@@ -160,30 +180,15 @@ class LogStream(Widget):
         content = self.query_one("#stream-content", Static)
         body = self.query_one("#stream-body", VerticalScroll)
 
-        current = state.selected_nav_item()
-        if current is not None:
-            surface = current.label.upper()
-        else:
-            surface = state.surface_title or strings.STREAM_DEFAULT_SURFACE
-        header.update(Text(strings.STREAM_HEADER.format(surface=surface), style="#A2D729 bold"))
-        right = " · ".join(
-            part
-            for part in (
-                state.model_label or state.agent_label or strings.AGENT,
-                state.branch_label,
-            )
-            if part
-        )
+        header.update(_render_header(state))
         visible = state.visible_entries()
         count = len(visible)
         position = (state.selected_phase_index + 1) if state.phases else 0
         total = state.total_count()
         meta.update(
             Text(
-                strings.STREAM_META.format(
-                    count=count, position=position, total=total, right=right
-                ),
-                style="#888888",
+                strings.STREAM_META.format(count=count, position=position, total=total),
+                style=TEXT_MUTED,
             )
         )
 
@@ -270,8 +275,12 @@ class LogStream(Widget):
             return _render_empty(state)
         output = Text()
         last = len(entries) - 1
+        previous: LogKind | None = None
         for index, entry in enumerate(entries):
+            if previous in _TOOL_KINDS and entry.kind not in _TOOL_KINDS:
+                output.append("\n")
             output.append_text(self._render_entry(entry, active=entry.active or index == last))
+            previous = entry.kind
         return output
 
     def _render_entry(self, entry: LogEntry, *, active: bool) -> Text:
@@ -292,6 +301,23 @@ class LogStream(Widget):
         if entry.kind == LogKind.INFO:
             return _render_info(entry, active=active)
         return _render_tool(entry, active=active, spin=_SPINNER[self._spin_frame])
+
+
+def _render_header(state: CockpitState) -> Text:
+    """The selected step's name, its status badge and its clock."""
+    current = state.selected_nav_item()
+    output = Text()
+    if current is None:
+        output.append(state.surface_title or strings.STREAM_DEFAULT_SURFACE, style=f"bold {TEXT}")
+        return output
+    output.append(current.label.upper(), style=f"bold {TEXT}")
+    shown = current.display_status()
+    output.append("  ")
+    output.append_text(status_badge(shown))
+    if elapsed := current.elapsed_label():
+        output.append("  ")
+        output.append(elapsed, style=f"bold {status_color(shown)}")
+    return output
 
 
 def _render_empty(state: CockpitState) -> Text:
@@ -330,18 +356,22 @@ def _render_info(entry: LogEntry, *, active: bool) -> Text:
 
 
 def _render_tool(entry: LogEntry, *, active: bool, spin: str) -> Text:
+    """One line per call: state, kind and target; details hang below it."""
     output = Text()
-    output.append(_gutter(active), style="#A2D729" if active else "#333333")
-    output.append(f"{spin} " if entry.pending else "v ", style="#A2D729")
-    output.append(f"{entry.kind.value}\n", style="#A2D729")
+    tone = _KIND_COLORS.get(entry.kind, TEXT_MUTED)
+    output.append(_gutter(active), style=tone if active else TEXT_DIM)
+    if entry.pending:
+        output.append(f"{spin} ", style=status_color("running"))
+    else:
+        output.append("✓ ", style=status_color("done"))
+    output.append(f"{entry.kind.value:<{_KIND_WIDTH}} ", style=f"bold {tone}")
     target = entry.title.strip() or entry.detail.strip() or "…"
     if entry.pending and target in {"…", "..."}:
-        output.append(f"  {strings.STREAM_LOADING}\n", style="#888888")
+        output.append(f"{strings.STREAM_LOADING}\n", style=TEXT_MUTED)
     else:
-        output.append(f"  {escape(target)}\n", style="#B0B0B0")
+        output.append(f"{escape(target)}\n", style=TEXT)
     detail = entry.detail.strip()
     if detail and detail != target:
         for line in detail.splitlines():
-            output.append(f"    {escape(line)}\n", style="#888888")
-    output.append("\n")
+            output.append(f"{_DETAIL_INDENT}{escape(line)}\n", style=TEXT_MUTED)
     return output

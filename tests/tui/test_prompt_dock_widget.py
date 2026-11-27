@@ -105,7 +105,9 @@ def test_confirm_starts_on_yes_under_the_default_title_and_answers_true():
             await pilot.pause()
             dock = app.query_one(PromptDock)
             assert app.query_one("#yes", Button).has_focus
-            assert str(dock.query_one(".prompt-title").render()) == strings.PROMPT_DEFAULT_TITLE
+            assert str(dock.query_one(".prompt-title").render()) == strings.PROMPT_TITLE.format(
+                title=strings.PROMPT_DEFAULT_TITLE
+            )
             assert str(dock.query_one(".prompt-text").render()) == "Allow write?"
 
             await pilot.press("enter")

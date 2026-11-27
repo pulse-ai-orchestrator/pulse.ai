@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pulse.history.status_labels import status_color, status_tint
 from pulse.tui.history_theme import HISTORY_CSS
 from pulse.tui.home_theme import HOME_CSS
 from pulse.tui.palette import (
@@ -10,10 +11,14 @@ from pulse.tui.palette import (
     ERROR_SOFT,
     LIME,
     LIME_MUTED,
+    RAISED,
     TEXT,
     TEXT_MUTED,
 )
 from pulse.tui.settings_theme import SETTINGS_CSS
+
+AWAITING = status_color("awaiting_input")
+AWAITING_TINT = status_tint("awaiting_input")
 
 COCKPIT_CSS = (
     f"""
@@ -26,8 +31,9 @@ AppHeader {{
     dock: top;
     height: 3;
     layout: vertical;
-    background: {BG};
+    background: {BG_PANEL};
     color: {TEXT_MUTED};
+    border-bottom: solid {BORDER};
     padding: 0 1;
 }}
 
@@ -44,29 +50,44 @@ AppHeader #header-sub {{
 }}
 
 AppHeader .brand {{
-    color: {TEXT_MUTED};
+    color: {LIME};
+    text-style: bold;
     width: auto;
+    padding-right: 2;
 }}
 
-AppHeader .run-status {{
-    color: {LIME};
-    text-align: right;
+AppHeader .workflow-label {{
+    color: {TEXT};
+    text-style: bold;
     width: 1fr;
     overflow: hidden;
 }}
 
-AppHeader .pipeline-badge {{
+AppHeader .run-badge {{
     width: auto;
-    background: {LIME_MUTED};
-    color: {LIME};
-    padding: 0 1;
-    text-style: bold;
+    margin-right: 1;
 }}
 
-AppHeader .workflow-label {{
-    color: {TEXT_MUTED};
-    padding: 0 1;
+AppHeader .run-clock {{
+    width: auto;
+    background: {RAISED};
+}}
+
+AppHeader .run-meter {{
+    width: auto;
+    padding-right: 1;
+}}
+
+AppHeader .run-status {{
+    color: {TEXT};
     width: 1fr;
+    overflow: hidden;
+}}
+
+AppHeader .run-where {{
+    color: {TEXT_MUTED};
+    width: auto;
+    text-align: right;
 }}
 
 PhaseSidebar {{
@@ -229,7 +250,7 @@ ArtifactPane Markdown {{
 AppFooter {{
     dock: bottom;
     height: 1;
-    background: {BG};
+    background: {BG_PANEL};
     color: {TEXT_MUTED};
     padding: 0 1;
 }}
@@ -311,12 +332,12 @@ PromptDock {{
     height: 100%;
     layout: vertical;
     background: {BG_PANEL};
-    border-top: solid {LIME};
+    border-top: heavy {AWAITING};
     padding: 0 1;
 }}
 
 PromptDock .prompt-title {{
-    color: {LIME};
+    color: {AWAITING};
     text-style: bold;
     height: 1;
 }}
@@ -341,6 +362,13 @@ PromptDock OptionList {{
 
 PromptDock OptionList:focus {{
     border: none;
+}}
+
+PromptDock OptionList > .option-list--option-highlighted,
+PromptDock OptionList:focus > .option-list--option-highlighted {{
+    background: {AWAITING_TINT};
+    color: {AWAITING};
+    text-style: bold;
 }}
 
 PromptDock Input {{

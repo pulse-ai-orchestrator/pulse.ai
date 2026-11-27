@@ -130,7 +130,7 @@ def test_cockpit_layout_keeps_header_and_body_sizes():
             footer = app.query_one(AppFooter)
             sidebar = app.query_one(PhaseSidebar)
             stream = app.query_one(LogStream)
-            assert header.size.height == 3
+            assert header.outer_size.height == 3
             assert footer.size.height == 1
             assert body.size.height == 28
             assert body.size.width == 120

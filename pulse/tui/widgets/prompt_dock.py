@@ -38,7 +38,8 @@ class PromptDock(Widget):
         self._answered = False
 
     def compose(self) -> ComposeResult:
-        yield Static(self._request.title or strings.PROMPT_DEFAULT_TITLE, classes="prompt-title")
+        title = self._request.title or strings.PROMPT_DEFAULT_TITLE
+        yield Static(strings.PROMPT_TITLE.format(title=title), classes="prompt-title")
         yield Static(self._request.prompt, classes="prompt-text")
         kind = self._request.kind
         if kind in {PromptKind.SELECT, PromptKind.MULTI_SELECT}:

@@ -60,11 +60,11 @@ RUN_RESUMABLE_FROM_FAILURE = "Dá para retomar do step que falhou"
 RUN_STOPPING = "Parando — cortando o step em execução"
 
 # Header
-HEADER_BRAND = "PULSE // ACP COCKPIT"
-HEADER_PIPELINE_BADGE = "SYS.PIPELINE"
-HEADER_RUN_EMPTY = "RUN 0/0"
-HEADER_STOPPED = "PARADA"
-HEADER_AWAITING_INPUT = "PRECISA DE VOCÊ"
+HEADER_BRAND = "■ PULSE // ACP"
+HEADER_RUN_EMPTY = "0/0 etapas"
+HEADER_PROGRESS = "{done}/{total} etapas · {percent}%"
+HEADER_TOTAL = "TOTAL"
+HEADER_BRANCH = "branch {branch}"
 CONTEXT_LABEL = "{tokens} tokens"
 
 # Footer
@@ -85,8 +85,7 @@ SIDEBAR_NO_STEPS = "Nenhum step configurado"
 
 # Log stream
 STREAM_DEFAULT_SURFACE = "RUNTIME MODE & WORKSPACE CONFIG SURFACE"
-STREAM_HEADER = "{surface} [backend]"
-STREAM_META = "{count} entries · step {position}/{total}          {right}"
+STREAM_META = "{count} entries · step {position}/{total}"
 STREAM_ASSISTANT = "Assistente"
 STREAM_WORKFLOW_FAILURE = "Falha no workflow"
 STREAM_NO_ACTIVITY = "Nenhuma atividade neste item."
@@ -109,6 +108,7 @@ ARTIFACT_TRUNCATED = "\n\n[… artefato truncado …]"
 # Prompt dock and prompt bridge
 PROMPT_BINDING_CANCEL = "Cancel"
 PROMPT_DEFAULT_TITLE = "Prompt"
+PROMPT_TITLE = "◆ {title}"
 PROMPT_HINT_MULTI_SELECT = "Espaço marca · Enter confirma · Esc cancela"
 PROMPT_HINT_SELECT = "↑↓ escolhe · letra vai direto · Enter confirma · Esc cancela"
 PROMPT_INPUT_PLACEHOLDER = "Resposta…"
