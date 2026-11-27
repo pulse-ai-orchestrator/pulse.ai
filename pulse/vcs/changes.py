@@ -21,7 +21,9 @@ def commit_paths(cwd: Path, paths: list[str], message: str) -> None:
     if not relative:
         raise GitError("nothing to commit")
     _write(["add", "--", *relative], cwd=cwd)
-    _write(["commit", "-m", message], cwd=cwd)
+    # Naming the paths commits only them: anything else already staged (the
+    # user's own index, when the run works at the project root) stays staged.
+    _write(["commit", "-m", message, "--", *relative], cwd=cwd)
 
 
 def _status_paths(cwd: Path) -> list[str]:

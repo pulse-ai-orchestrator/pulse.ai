@@ -80,12 +80,12 @@ def publish_finished_run(wiring: Wiring, run: RunRecord, *, template: str) -> in
     `1` when the push fails, `RUN_STOPPED` when the user stopped the run while
     the request was being written: the worktree stays for the resume. Push sits
     behind Autocommit: without it the user never opted into publishing, even if
-    the agent committed on its own.
+    the agent committed on its own. A run at the project root pushes the
+    project's current branch and leaves the checkout and its branch as they are.
     """
     subjects = _subjects(wiring, run)
     if subjects is None:
         return None
-    cwd = Path(run.worktree_path)
     try:
         wiring.ports.workspace.publish_branch(run.branch)
     except WorkspaceError as error:
@@ -96,23 +96,38 @@ def publish_finished_run(wiring: Wiring, run: RunRecord, *, template: str) -> in
     if not wiring.control.checkpoint():
         notify(wiring, wording.RUN_STOPPED_BY_USER)
         return RUN_STOPPED
-    _drop_local(wiring, run, cwd)
+    if run.worktree_path:
+        _drop_local(wiring, run, Path(run.worktree_path))
     return None
 
 
 def _subjects(wiring: Wiring, run: RunRecord) -> list[str] | None:
-    if not wiring.atomic_commits:
+    """What the run committed since it started, or None when there is nothing to publish."""
+    cwd = _commit_dir(wiring, run)
+    if not wiring.atomic_commits or cwd is None or not run.branch_base:
         return None
-    if not run.owns_branch or not run.branch_base or not run.worktree_path:
-        return None
-    subjects = wiring.ports.workspace.commits_after(Path(run.worktree_path), run.branch_base)
+    subjects = wiring.ports.workspace.commits_after(cwd, run.branch_base)
     if not subjects:
         return None
     return subjects
 
 
+def _commit_dir(wiring: Wiring, run: RunRecord) -> Path | None:
+    """Where the run's commits land: its own worktree, or the project root on its
+    current branch. A root outside a repository, or on a detached HEAD, has no
+    branch to commit on.
+    """
+    if run.worktree_path:
+        return Path(run.worktree_path) if run.owns_branch else None
+    if run.branch_owned or not run.branch:
+        return None
+    return wiring.exec_dir
+
+
 def _will_commit(wiring: Wiring, run: RunRecord, step: StepDef) -> bool:
-    return bool(wiring.atomic_commits and run.branch_owned and step.commit_type)
+    if not wiring.atomic_commits or not step.commit_type:
+        return False
+    return run.branch_owned or _commit_dir(wiring, run) is not None
 
 
 def pull_request_body(template: str, *, prompt: str, branch: str, commits: list[str]) -> str:

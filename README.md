@@ -165,8 +165,12 @@ Para iniciar uma tarefa (ex.: **Correção rápida**, **Nova spec**), só a
 | `Tab` / `Espaço` | Mudam de campo / marcam uma opção |
 
 Em **Mais opções**, a config da run — *Auto branch*, *Auto commit* e *Auto PR/MR* —
-começa com o que está em *Configurações* e vale só para aquela run. O modo
-escolhido vale para as próximas tarefas até fechar o Pulse.
+começa com o que está em *Configurações* e vale só para aquela run. *Auto commit*
+não depende de *Auto branch*: sem ela, commita na branch atual do projeto e a
+envia para o `origin` no fim da run. Nesse modo, o que você salvar no editor
+enquanto um step roda entra no commit desse step; com *Auto branch* a run
+trabalha num worktree separado. Marcar *Auto PR/MR* marca as outras duas. O
+modo escolhido vale para as próximas tarefas até fechar o Pulse.
 
 ## Runtimes suportados
 

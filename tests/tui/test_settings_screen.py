@@ -469,8 +469,9 @@ def test_an_unavailable_toggle_says_what_it_needs_before_it_is_tried(tmp_path: P
             rows[option_id] = widget.get_option(option_id).prompt.plain.splitlines()
 
     _run_settings(tmp_path, scenario)
-    assert rows["atomic"][0].split()[-2:] == ["–", "indisponível"]
-    assert rows["atomic"][1].strip() == "Autocommit só liga com o Worktree ligado."
+    assert rows["atomic"][0].split()[-2:] == ["○", "desligado"]
+    assert rows["atomic"][1].strip() == "Um commit por entrega"
+    assert rows["pull_request"][0].split()[-2:] == ["–", "indisponível"]
     assert rows["pull_request"][1].strip() == (
         "PR/MR só liga com o Worktree e o Autocommit ligados."
     )

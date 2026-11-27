@@ -279,7 +279,6 @@ SETTINGS_WORKTREE_LABEL = "Worktree"
 SETTINGS_WORKTREE_DESCRIPTION = "Isola cada run numa branch própria"
 SETTINGS_ATOMIC_LABEL = "Autocommit"
 SETTINGS_ATOMIC_DESCRIPTION = "Um commit por entrega"
-SETTINGS_ATOMIC_NEEDS_WORKTREE = "Autocommit só liga com o Worktree ligado."
 SETTINGS_PR_LABEL = "PR/MR"
 SETTINGS_PR_DESCRIPTION = "Abre o pedido no fim da run"
 SETTINGS_PR_NEEDS_COMMITS = "PR/MR só liga com o Worktree e o Autocommit ligados."
@@ -295,10 +294,12 @@ SETTINGS_WORKTREE_ENABLED = (
 )
 SETTINGS_WORKTREE_DISABLED = (
     "As runs voltam a rodar na árvore de trabalho do projeto. "
-    "Autocommit e PR/MR foram desligados. Os worktrees já criados continuam onde estão."
+    "PR/MR foi desligado. Os worktrees já criados continuam onde estão."
 )
 SETTINGS_ATOMIC_ENABLED = (
-    "Cada entrega de implementação ou correção vira um commit na branch da run."
+    "Cada entrega de implementação ou correção vira um commit na branch da run, "
+    "ou na branch atual do projeto quando o Worktree está desligado. "
+    "No fim da run, a branch vai para o remoto."
 )
 SETTINGS_ATOMIC_DISABLED = "As runs deixam de commitar. PR/MR foi desligado."
 SETTINGS_PR_ENABLED = "No fim da run o Pulse abre o pedido no GitHub ou no GitLab."

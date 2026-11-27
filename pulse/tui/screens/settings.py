@@ -44,8 +44,7 @@ def _git_rows(settings: ProjectSettings) -> list[MenuRow]:
         atomic_commits=settings.atomic_commits,
         auto_pull_request=settings.auto_pull_request,
     )
-    commits_available = chain.use_worktree
-    pull_request_available = chain.atomic_commits
+    pull_request_available = chain.use_worktree and chain.atomic_commits
     return [
         _toggle_row(
             "worktree",
@@ -56,10 +55,8 @@ def _git_rows(settings: ProjectSettings) -> list[MenuRow]:
         _toggle_row(
             "atomic",
             strings.SETTINGS_ATOMIC_LABEL,
-            toggle_state(settings.atomic_commits, available=commits_available),
-            strings.SETTINGS_ATOMIC_DESCRIPTION
-            if commits_available
-            else strings.SETTINGS_ATOMIC_NEEDS_WORKTREE,
+            toggle_state(settings.atomic_commits, available=True),
+            strings.SETTINGS_ATOMIC_DESCRIPTION,
         ),
         _toggle_row(
             "pull_request",
@@ -205,11 +202,7 @@ class SettingsScreen(Screen[None]):
         return self._settings if self._settings is not None else self._load()
 
     def _toggle_atomic(self) -> None:
-        current = self._current()
-        if not current.use_worktree:
-            self._set_report(strings.SETTINGS_ATOMIC_NEEDS_WORKTREE)
-            return
-        enabled = not current.atomic_commits
+        enabled = not self._current().atomic_commits
         engine.set_atomic_commits(self._cwd, enabled=enabled)
         self._show_root()
         self._set_report(

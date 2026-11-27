@@ -401,14 +401,22 @@ caminhos de artefato apontam para o mesmo arquivo nos dois modos. Se a subpasta
 ainda não está commitada, é criada vazia no worktree. O Autocommit só enxerga
 o que mudou dentro dela, e remover o worktree remove a raiz dele.
 
-Três opções de projeto, em escada, todas desligadas por padrão:
-**Worktree**, **Autocommit** (`atomic_commits`, só com worktree) e **PR/MR**
-(`auto_pull_request`, só com as duas). Autocommit grava um commit por step com
-`workflow_steps.commit_type` (`feat` ou `fix`; vazio não commita), só com os
-caminhos que mudaram naquele step, dentro do worktree (arquivos de pasta não
-rastreada contam um a um). No fim da run, com Autocommit ligado e se essa
-branch teve commit, o Pulse faz `git push -u origin`; sem Autocommit nada é
-publicado, mesmo que o agente tenha commitado sozinho. Com PR/MR ligado, abre o
+Três opções de projeto, todas desligadas por padrão: **Worktree**,
+**Autocommit** (`atomic_commits`) e **PR/MR** (`auto_pull_request`, só com as
+duas). Worktree e Autocommit são independentes. Autocommit grava um commit por
+step com `workflow_steps.commit_type` (`feat` ou `fix`; vazio não commita), só
+com os caminhos que mudaram naquele step (arquivos de pasta não rastreada
+contam um a um): dentro do worktree, na branch da run; sem worktree, na raiz do
+projeto e na branch atual dele (fora de um repositório ou com HEAD destacado,
+não commita). O commit grava só esses caminhos (`git commit -- <caminhos>`): o
+que o usuário já tinha no stage fica fora e continua no stage. Na raiz, um
+arquivo que o usuário salva no editor enquanto o step roda também conta como
+mudança do step e entra no commit; só o worktree isola as duas coisas. No fim
+da run, com Autocommit ligado e se a run commitou desde que começou
+(`runs.branch_base`), o Pulse faz `git push -u origin` da branch: a da run, com
+worktree, ou a atual do projeto, na raiz. Na raiz, o checkout e a branch ficam
+como estão. Sem Autocommit nada é publicado, mesmo que o agente tenha
+commitado sozinho. Com PR/MR ligado, abre o
 pedido **em draft** no GitHub (`gh pr create --draft`) ou no GitLab
 (`glab mr create --draft`) contra o `origin/HEAD` (sem ele, o pedido não abre e
 a run avisa). O corpo segue o template do repositório na branch default

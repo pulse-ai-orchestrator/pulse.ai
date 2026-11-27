@@ -104,13 +104,23 @@ def test_the_settings_list_every_agent_and_the_worktree_switch(tmp_path: Path) -
     assert settings.atomic_commits is settings.auto_pull_request is False
 
 
-def test_git_options_turn_on_only_in_order_and_turn_off_downward(tmp_path: Path) -> None:
+def test_git_options_need_what_they_build_on_and_turn_off_what_needs_them(
+    tmp_path: Path,
+) -> None:
     init_project_config(tmp_path)
 
     with pytest.raises(SettingsOrderError):
-        set_atomic_commits(tmp_path, enabled=True)
+        set_auto_pull_request(tmp_path, enabled=True)
+    set_atomic_commits(tmp_path, enabled=True)
     with pytest.raises(SettingsOrderError):
         set_auto_pull_request(tmp_path, enabled=True)
+    project = load_project_config(tmp_path)
+    assert project is not None
+    assert (project.use_worktree, project.atomic_commits, project.auto_pull_request) == (
+        False,
+        True,
+        False,
+    )
 
     set_worktree(tmp_path, enabled=True)
     set_atomic_commits(tmp_path, enabled=True)
@@ -132,7 +142,7 @@ def test_git_options_turn_on_only_in_order_and_turn_off_downward(tmp_path: Path)
     assert project is not None
     assert (project.use_worktree, project.atomic_commits, project.auto_pull_request) == (
         False,
-        False,
+        True,
         False,
     )
 

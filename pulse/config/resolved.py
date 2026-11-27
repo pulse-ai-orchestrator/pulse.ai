@@ -6,6 +6,7 @@ from pathlib import Path
 from pulse.config.agents import DEFAULT_AGENT_NAME, AgentConfig
 from pulse.config.global_config import GlobalConfig, load_global_config
 from pulse.config.project_config import ProjectConfig, load_project_config
+from pulse.domain.git_options import NO_GIT_OPTIONS, GitOptions
 from pulse.runtimes import (
     DEFAULT_RUNTIME_ID,
     AgentRuntime,
@@ -197,6 +198,15 @@ def resolve_config(
         sources["auth_method"] = "default"
         auth_method = DEFAULT_AUTH_METHOD
 
+    git = (
+        GitOptions.chained(
+            use_worktree=project_cfg.use_worktree,
+            atomic_commits=project_cfg.atomic_commits,
+            auto_pull_request=project_cfg.auto_pull_request,
+        )
+        if project_cfg
+        else NO_GIT_OPTIONS
+    )
     return ResolvedConfig(
         agent_name=agent.name,
         agent_binary=agent.binary,
@@ -205,16 +215,9 @@ def resolve_config(
         model=model,
         permission_policy=permission_policy,
         workspace_dir=workspace_dir,
-        use_worktree=bool(project_cfg.use_worktree) if project_cfg else False,
-        atomic_commits=bool(project_cfg.use_worktree and project_cfg.atomic_commits)
-        if project_cfg
-        else False,
-        auto_pull_request=bool(
-            project_cfg
-            and project_cfg.use_worktree
-            and project_cfg.atomic_commits
-            and project_cfg.auto_pull_request
-        ),
+        use_worktree=git.use_worktree,
+        atomic_commits=git.atomic_commits,
+        auto_pull_request=git.auto_pull_request,
         workflow=workflow,
         pulse_agent=pulse_agent,
         agents=agents,

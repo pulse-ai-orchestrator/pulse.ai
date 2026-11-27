@@ -15,14 +15,14 @@ from tests.infra.test_worktree import make_repo
 pytestmark = pytest.mark.skipif(not vcs.git_available(), reason="git is not on PATH")
 
 
-def _git(repo: Path, *args: str) -> None:
-    subprocess.run(  # noqa: S603 - fixed git argv on a temp repo
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(  # noqa: S603 - fixed git argv on a temp repo
         ["git", *args],  # noqa: S607 - git resolved from PATH
         cwd=repo,
         check=True,
         capture_output=True,
         text=True,
-    )
+    ).stdout
 
 
 def test_a_snapshot_hashes_only_dirty_paths_and_a_commit_keeps_the_subject(tmp_path: Path) -> None:
@@ -48,6 +48,26 @@ def test_a_snapshot_hashes_only_dirty_paths_and_a_commit_keeps_the_subject(tmp_p
     (target / "novo.txt").unlink()
     assert workspace.snapshot(target)["novo.txt"] == ""
     assert branch == "corrigir-o-login"
+
+
+def test_a_commit_at_the_root_leaves_what_the_user_staged_out_and_staged(
+    tmp_path: Path,
+) -> None:
+    """At the project root the index is the user's: a step commit records only its
+    own paths, and what was already staged stays staged for the user's commit.
+    """
+    repo = make_repo(tmp_path / "repo")
+    workspace = GitWorkspace(repo, worktrees=tmp_path / "worktrees")
+    base = workspace.head(repo)
+    (repo / "README.md").write_text("trabalho do usuário\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    (repo / "agente.txt").write_text("mudança do agente\n", encoding="utf-8")
+
+    workspace.commit(repo, ["agente.txt"], "feat: agent step")
+
+    assert workspace.commits_after(repo, base) == ["feat: agent step"]
+    assert _git(repo, "show", "--name-only", "--format=", "HEAD").split() == ["agente.txt"]
+    assert _git(repo, "diff", "--cached", "--name-only").split() == ["README.md"]
 
 
 def test_a_commit_refuses_an_empty_list_and_a_path_outside_the_worktree(tmp_path: Path) -> None:
