@@ -31,8 +31,9 @@ Id que não está em `workflow_defs` não existe: `run_workflow` levanta
 direto na run; vazio, ele abre o campo para o usuário descrever a tarefa.
 
 `commit_type` (`feat`, `fix` ou vazio) diz se o Autocommit grava um commit
-quando o step entrega. Vazio não commita. A opção só existe com Worktree
-ligado; PR/MR só existe com as duas.
+quando o step entrega. Vazio não commita. Sem Worktree, o commit vai para a
+branch atual do projeto e não é publicado; PR/MR só existe com Worktree e
+Autocommit ligados.
 
 `opens_request` marca o step em que o PR/MR abre. Ligado, o draft nasce quando
 a última unidade desse step termina (no `new-issue`, a última task de

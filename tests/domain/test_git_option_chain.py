@@ -10,12 +10,12 @@ ALL_FLAGS = list(itertools.product((False, True), repeat=3))
 
 
 def _valid(worktree: bool, commits: bool, pull_request: bool) -> bool:
-    return (not commits or worktree) and (not pull_request or commits)
+    return not pull_request or (worktree and commits)
 
 
 @pytest.mark.parametrize(("worktree", "commits", "pull_request"), ALL_FLAGS)
-def test_only_the_chained_combinations_can_be_built(worktree, commits, pull_request):
-    """Commits need the run's branch and a pull request needs commits; nothing else exists."""
+def test_only_the_valid_combinations_can_be_built(worktree, commits, pull_request):
+    """A pull request needs the run's branch and its commits; the other two stand alone."""
     if _valid(worktree, commits, pull_request):
         options = GitOptions(worktree, commits, pull_request)
         assert (options.use_worktree, options.atomic_commits, options.auto_pull_request) == (
@@ -36,7 +36,7 @@ def test_chained_drops_what_lacks_its_prerequisite(worktree, commits, pull_reque
     )
 
     assert options.use_worktree == worktree
-    assert options.atomic_commits == (worktree and commits)
+    assert options.atomic_commits == commits
     assert options.auto_pull_request == (worktree and commits and pull_request)
 
 
@@ -46,10 +46,10 @@ def test_switching_on_a_pull_request_switches_on_what_it_needs():
     assert options == GitOptions(True, True, True)
 
 
-def test_switching_off_the_branch_switches_off_what_needs_it():
+def test_switching_off_the_branch_keeps_commits_and_drops_the_pull_request():
     options = GitOptions(True, True, True).toggled(GitOption.WORKTREE)
 
-    assert options == GitOptions()
+    assert options == GitOptions(False, True, False)
 
 
 def test_switching_off_commits_keeps_the_branch_and_drops_the_pull_request():
@@ -58,10 +58,16 @@ def test_switching_off_commits_keeps_the_branch_and_drops_the_pull_request():
     assert options == GitOptions(True, False, False)
 
 
-def test_switching_on_commits_leaves_the_pull_request_off():
+def test_switching_on_commits_leaves_the_branch_and_the_pull_request_off():
     options = GitOptions().toggled(GitOption.COMMITS)
 
-    assert options == GitOptions(True, True, False)
+    assert options == GitOptions(False, True, False)
+
+
+def test_switching_on_the_branch_leaves_commits_off():
+    options = GitOptions().toggled(GitOption.WORKTREE)
+
+    assert options == GitOptions(True, False, False)
 
 
 @pytest.mark.parametrize(("worktree", "commits", "pull_request"), ALL_FLAGS)

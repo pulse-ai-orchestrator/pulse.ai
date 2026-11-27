@@ -206,9 +206,7 @@ def resolve_config(
         permission_policy=permission_policy,
         workspace_dir=workspace_dir,
         use_worktree=bool(project_cfg.use_worktree) if project_cfg else False,
-        atomic_commits=bool(project_cfg.use_worktree and project_cfg.atomic_commits)
-        if project_cfg
-        else False,
+        atomic_commits=bool(project_cfg.atomic_commits) if project_cfg else False,
         auto_pull_request=bool(
             project_cfg
             and project_cfg.use_worktree

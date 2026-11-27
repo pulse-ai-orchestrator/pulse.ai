@@ -235,7 +235,7 @@ def test_enter_on_the_title_moves_on_instead_of_starting_the_run(monkeypatch):
 
 def test_the_git_options_start_from_the_project_and_carry_their_chain(monkeypatch):
     """Switching a pull request on needs commits and a branch; switching the branch off
-    leaves nothing to commit or publish.
+    leaves nothing to publish but keeps the commits.
     """
     _project(monkeypatch, worktree=False, commits=False)
 
@@ -248,7 +248,20 @@ def test_the_git_options_start_from_the_project_and_carry_their_chain(monkeypatc
 
         screen.query_one("#git-use-worktree", Checkbox).toggle()
         await pilot.pause()
-        assert _checked(screen) == (False, False, False)
+        assert _checked(screen) == (False, True, False)
+
+    _run(test)
+
+
+def test_switching_commits_on_in_the_form_leaves_the_worktree_off(monkeypatch):
+    """Autocommit stands alone: it commits on the project's branch without a worktree."""
+    _project(monkeypatch, worktree=False, commits=False)
+
+    async def test(_app, pilot, screen) -> None:
+        screen.query_one("#git-atomic-commits", Checkbox).toggle()
+        await pilot.pause()
+
+        assert _checked(screen) == (False, True, False)
 
     _run(test)
 
@@ -592,7 +605,7 @@ def test_turning_the_worktree_off_in_the_form_offers_new_files(monkeypatch, free
         await pilot.press("at")
         await wait_until(pilot, lambda: screen.query_one(FileMentionList).display)
 
-        assert _checked(screen) == (False, False, False)
+        assert _checked(screen) == (False, True, False)
         assert _offered(screen) == ["README.md", "notas.md"]
 
     _run(test, detailed=True)

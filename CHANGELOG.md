@@ -7,6 +7,12 @@ o projeto adota o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Alterado
+
+- *Auto commit* não liga mais o Worktree junto: sem ele, a run commita na
+  branch atual do projeto, sem push nem PR/MR. O PR/MR continua exigindo
+  Worktree e Autocommit.
+
 ## [0.1.0] - 2026-11-04
 
 Primeira versão pública do Pulse: um orquestrador de agentes de IA via ACP,

@@ -79,8 +79,9 @@ def publish_finished_run(wiring: Wiring, run: RunRecord, *, template: str) -> in
 
     `1` when the push fails, `RUN_STOPPED` when the user stopped the run while
     the request was being written: the worktree stays for the resume. Push sits
-    behind Autocommit: without it the user never opted into publishing, even if
-    the agent committed on its own.
+    behind Autocommit and the run's own worktree: without Autocommit the user
+    never opted into publishing, even if the agent committed on its own, and a
+    run at the root commits on the project's branch, which is not Pulse's to push.
     """
     subjects = _subjects(wiring, run)
     if subjects is None:
@@ -112,7 +113,12 @@ def _subjects(wiring: Wiring, run: RunRecord) -> list[str] | None:
 
 
 def _will_commit(wiring: Wiring, run: RunRecord, step: StepDef) -> bool:
-    return bool(wiring.atomic_commits and run.branch_owned and step.commit_type)
+    """Commits go on the run's own branch, or on the project's current one when the
+    run works at the root. A root outside a repository, or on a detached HEAD,
+    has no branch to commit on.
+    """
+    on_root_branch = not run.worktree_path and bool(run.branch)
+    return bool(wiring.atomic_commits and step.commit_type and (run.branch_owned or on_root_branch))
 
 
 def pull_request_body(template: str, *, prompt: str, branch: str, commits: list[str]) -> str:

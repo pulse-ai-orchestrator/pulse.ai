@@ -184,8 +184,9 @@ class FakeWorkspace:
         return dict(self.files.get(Path(cwd), {}))
 
     def commit(self, cwd: Path, paths: list[str], message: str) -> None:
-        branch = self.worktrees.get(Path(cwd))
-        if branch is None:
+        at_root = self._repo and Path(cwd) == self._root
+        branch = self._branch if at_root else self.worktrees.get(Path(cwd))
+        if not branch:
             raise WorkspaceError(f"{cwd} is not a worktree")
         self.log.setdefault(branch, []).append(message)
         self.committed.append((branch, list(paths), message))

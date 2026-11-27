@@ -179,15 +179,10 @@ def set_worktree(workspace: Path, *, enabled: bool) -> None:
     if enabled:
         update_project_defaults(workspace, use_worktree=True)
         return
-    update_project_defaults(
-        workspace, use_worktree=False, atomic_commits=False, auto_pull_request=False
-    )
+    update_project_defaults(workspace, use_worktree=False, auto_pull_request=False)
 
 
 def set_atomic_commits(workspace: Path, *, enabled: bool) -> None:
-    project = load_project_config(open_project(workspace))
-    if enabled and (project is None or not project.use_worktree):
-        raise SettingsOrderError("atomic commits require a worktree")
     if enabled:
         update_project_defaults(workspace, atomic_commits=True)
         return
