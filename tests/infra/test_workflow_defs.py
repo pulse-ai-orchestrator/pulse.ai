@@ -546,7 +546,7 @@ def test_only_review_offers_skip():
         if step.requires_approval and "Pular" in step.prompt_template
     ]
 
-    assert offering == ["review", "review"]
+    assert offering == ["review", "review", "review"]
 
     step = next(s for s in workflows["new-issue"].steps if s.step_id == "review")
     option = next(
@@ -568,9 +568,9 @@ def test_merge_layer_is_a_capped_loop():
     repeating = [
         step.step_id for workflow in list_workflows() for step in workflow.steps if step.repeat
     ]
-    assert repeating == ["verify-fix", "review-fix", "review-fix"]
+    assert sorted(repeating) == ["review-fix", "review-fix", "review-fix", "verify-fix"]
 
-    for workflow_id in ("new-issue", "review"):
+    for workflow_id in ("new-issue", "quick-fix", "review"):
         steps = {step.step_id: step for step in get_workflow(workflow_id).steps}
         assert steps["review-fix"].repeat == RepeatRule(back_to="review", max_rounds=3)
         assert "repeats" in steps["review"].prompt_template.lower()

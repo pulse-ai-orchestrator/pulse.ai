@@ -23,3 +23,6 @@ next: close
 Pulse ends the review loop right there and skips the fix step. Anything still
 `pending`, `valid` or `needs-info` after round 1 or 2 is something to correct:
 then, and only then, close with the approval block.
+
+Otherwise, one line making the skip option concrete: choosing **Pular** keeps
+this round file on disk and corrects nothing in this run.

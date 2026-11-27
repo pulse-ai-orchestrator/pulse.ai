@@ -110,6 +110,16 @@ WORKFLOWS: tuple[FactoryWorkflow, ...] = (
         steps=(
             FactoryStep("quick-plan", "Plano", True),
             FactoryStep("quick-implement", "Implementar", False, commit_type="fix"),
+            FactoryStep("review", "Review", True, phase="QUICK"),
+            FactoryStep(
+                "review-fix",
+                "Fix review",
+                False,
+                repeat_from="review",
+                repeat_max=3,
+                phase="QUICK",
+                commit_type="fix",
+            ),
         ),
     ),
     FactoryWorkflow(

@@ -58,7 +58,7 @@ upgrade, e linha de fábrica apagada volta na abertura seguinte.
 | Loop | Steps |
 | --- | --- |
 | `new-issue` — Nova spec | prd → techspec → tasks → implement (uma vez por task) → verify ⇄ verify-fix (valida contra PRD e Techspec e corrige as lacunas; laço, até 3 rodadas) → review ⇄ review-fix (laço, até 3 rodadas) |
-| `quick-fix` — Correção rápida | quick-plan → quick-implement |
+| `quick-fix` — Correção rápida | quick-plan → quick-implement → review ⇄ review-fix (laço, até 3 rodadas) contra o `TASK.md`; fase `QUICK.md`, rodadas em `.pulse/specs/quick/NNN-slug/reviews/` |
 | `review` — Review | review ⇄ review-fix (laço, até 3 rodadas) sobre a branch atual vs `main` + não commitado; fase `STANDALONE.md`, rodadas em `.pulse/reviews/NNN-slug/` |
 | `setup-project` — Setup do projeto | setup-interview → setup-artifacts |
 | `analyze-codebase` — Analisar codebase | codebase-explore → codebase-docs |
@@ -74,9 +74,12 @@ em "Nova sessão": aquele menu é de pipeline. Ele segue no banco e na API.
 
 Os playbooks são `.md` em `factory/agents/<id>/AGENT.md` (vira
 `agent_defs.instructions`) e `PHASE.md` (vira `workflow_steps.prompt_template`).
-Os blocos repetidos — isolamento, clarify, aprovação, idioma de saída — ficam em
-`factory/shared/` e são expandidos **na semeadura**, via
-`<!-- include: nome -->`, para a linha do banco ser autossuficiente.
+Os blocos repetidos — isolamento, clarify, aprovação, idioma de saída, as regras
+do laço review ⇄ review-fix — ficam em `factory/shared/` e são expandidos **na
+semeadura**, via `<!-- include: nome -->`, para a linha do banco ser
+autossuficiente. A expansão é de um nível só: um arquivo de `shared/` não inclui
+outro. `test_no_phase_copies_a_block_from_another_phase` falha quando duas fases
+repetem 15 linhas seguidas.
 
 Ficam em arquivo, e não em string Python, porque são ~8 mil linhas que alguém
 precisa revisar em diff. Isso **não** reintroduz catálogo em código: o motor lê

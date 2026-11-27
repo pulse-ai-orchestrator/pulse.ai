@@ -33,14 +33,7 @@ next round is the highest existing `NNN` plus 1, and the rules change with it:
   untouched code is re-running round 1, which is the loop this contract exists
   to terminate. Scope yourself to what the fixes changed.
 
-**You are the only one who can end this loop.** The fix step never closes it:
-every fix pass sends the run back here, because a repair nobody has looked at is
-not finished. The merge layer ends when a review finds nothing left to correct —
-or at round 3, the last one: no fix runs after it.
-
-There is no fourth round. If this is round 3, close every open ID — `resolved`,
-`invalid`, `declined-accepted`, `waived` or `deferred` — and say plainly what the
-person still has to decide, because nobody repairs anything after you.
+<!-- include: review-loop-end -->
 
 ### Scope
 
@@ -65,28 +58,9 @@ Write **one** file: the next free `.pulse/specs/features/<slug>/reviews/round-NN
 Do not touch application code in this phase — identifying is this step's whole
 job, and repairing belongs to the next one.
 
-**Nothing found means no file.** Report a clean review, verdict `approved`, and
-close the loop as described below. An empty round file is worse than no round
-file.
-
-Before presenting, run the Step 6 self-check against every finding you wrote.
-
-### What to present
-
-Your reply has to stand on its own, because the person decides from it without
-opening the round file. Close with:
-
-- **whether anything `critical` or `high` is still open** — in a later round this
-  is the whole question, so it goes first;
-- the verdict (`approved`, `approved-with-followups`, `changes-requested`);
-- the count per severity, and which round this is;
-- the path of the round file, when there is one;
-- every `critical` and `high`, one line each: what is wrong and where.
+<!-- include: review-present -->
 
 <!-- include: review-close -->
-
-Otherwise, one line making the skip option concrete: choosing **Pular** keeps
-this round file on disk and corrects nothing in this run.
 
 <!-- include: approval-skip -->
 

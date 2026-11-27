@@ -182,7 +182,8 @@ now.** Write exactly one file:
 .pulse/specs/features/<feature>/reviews/round-001.md
 ```
 
-Outside the feature pipeline: `.pulse/reviews/NNN-slug/round-NNN.md`.
+In a quick task: `.pulse/specs/quick/NNN-slug/reviews/round-NNN.md`. Outside
+both: `.pulse/reviews/NNN-slug/round-NNN.md`.
 
 No findings means no file. Report a clean review and stop; do not create an empty
 round.
@@ -644,7 +645,9 @@ One markdown file per round. This is the only artifact the review produces.
 Next round = highest existing NNN + 1. **No findings means no file.** Never
 create an empty round.
 
-Outside the feature pipeline (reviewing an arbitrary diff):
+In a quick task: `.pulse/specs/quick/NNN-slug/reviews/round-NNN.md`.
+
+Outside both (reviewing an arbitrary diff):
 `.pulse/reviews/NNN-slug/round-NNN.md`.
 
 ## Why one file
