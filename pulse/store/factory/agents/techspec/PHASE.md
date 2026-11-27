@@ -10,7 +10,9 @@ Original task: {{user_prompt}}
 Read the feature's `context.md` and its `PRD.md`.
 Write `TECHSPEC.md` next to them, per the `techspec.md` playbook above.
 
-**No PRD** (`context.md` says `PRD dispensado`): this Techspec is also the
+{{#if previous_status}}The PRD step closed as `{{previous_status}}`; `skipped` means there is no PRD.
+{{/if}}**No PRD** (the PRD step closed as `skipped`, or `context.md` says
+`PRD dispensado`): this Techspec is also the
 contract. Before the architecture, write a `## Requirements` section with what
 the task must deliver — requirement IDs, EARS acceptance criteria (one testable
 behavior each, concrete values), edge cases — and a `## Requirement Traceability`
