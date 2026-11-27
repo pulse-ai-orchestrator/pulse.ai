@@ -371,6 +371,43 @@ def test_a_database_at_version_8_lets_the_factory_prd_step_skip_itself(tmp_path:
     assert not any(step.skippable for step in again.steps)
 
 
+def test_a_factory_workflow_with_an_extra_step_still_gets_the_upgrade(tmp_path: Path) -> None:
+    """A step added to a factory workflow makes the row count differ from the factory's.
+
+    The upgrade used to run only when the counts matched, so that database kept
+    the PRD mandatory and its old prompts forever: the backfill runs on the
+    migration alone, and the next open no longer knows the column is new.
+    """
+    from pulse.store import factory
+    from pulse.store.workflow_defs import get_workflow
+
+    path = tmp_path / "extra-step.db"
+    connect(path).close()
+    with _raw(path) as connection:
+        connection.execute(
+            "INSERT INTO workflow_steps (workflow_id, step_id, position, label, agent_id) "
+            "VALUES ('quick-fix', 'review', 3, 'Review', 'review')"
+        )
+        connection.execute("ALTER TABLE workflow_steps DROP COLUMN skippable")
+        connection.execute(
+            "UPDATE workflow_steps SET prompt_template = ? "
+            "WHERE workflow_id = 'new-issue' AND step_id = 'prd'",
+            (factory.REQUIRED_PRD_STEP_MARKS[1],),
+        )
+        connection.execute("PRAGMA user_version = 8")
+
+    connect(path).close()
+
+    upgraded = get_workflow("new-issue", db_path=path)
+    assert upgraded is not None
+    prd = next(step for step in upgraded.steps if step.step_id == "prd")
+    assert prd.skippable
+    assert prd.prompt_template == factory.load_phase("prd")
+    quick = get_workflow("quick-fix", db_path=path)
+    assert quick is not None
+    assert [step.step_id for step in quick.steps][-1] == "review", "the user's step stays"
+
+
 def test_a_run_stored_before_runs_kept_git_options_reads_none(tmp_path):
     """NULL options mean "follow the project", the behavior that run started with."""
     from pulse.store.runs import load_run

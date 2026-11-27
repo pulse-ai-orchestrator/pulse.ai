@@ -425,22 +425,24 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
 
     if not factory.is_seeded(connection):
         factory.seed(connection)
-    else:
-        if ("workflow_defs", "default_prompt") in added:
-            factory.backfill_default_prompts(connection)
-        if ("workflow_steps", "commit_type") in added:
-            factory.backfill_commit_types(connection)
-        if ("workflow_defs", "pull_request_template") in added:
-            factory.backfill_pull_request_templates(connection)
-        if ("workflow_steps", "opens_request") in added:
-            factory.backfill_opens_request(connection)
-        if ("workflow_steps", "skippable") in added:
-            factory.backfill_skippable(connection)
-        factory.drop_approval_from_unattended_steps(connection)
-        factory.inherit_policy_on_default_agent(connection)
-        factory.drop_validation_from_implement(connection)
-        factory.refresh_uncapped_clarify_loops(connection)
-        factory.refresh_for_optional_prd(connection)
+    # Upgrades run whether or not seeding did. `is_seeded` also fails when a
+    # factory workflow gained a step, and skipping them there would lose a
+    # backfill for good: it runs only on the open that adds the column.
+    if ("workflow_defs", "default_prompt") in added:
+        factory.backfill_default_prompts(connection)
+    if ("workflow_steps", "commit_type") in added:
+        factory.backfill_commit_types(connection)
+    if ("workflow_defs", "pull_request_template") in added:
+        factory.backfill_pull_request_templates(connection)
+    if ("workflow_steps", "opens_request") in added:
+        factory.backfill_opens_request(connection)
+    if ("workflow_steps", "skippable") in added:
+        factory.backfill_skippable(connection)
+    factory.drop_approval_from_unattended_steps(connection)
+    factory.inherit_policy_on_default_agent(connection)
+    factory.drop_validation_from_implement(connection)
+    factory.refresh_uncapped_clarify_loops(connection)
+    factory.refresh_for_optional_prd(connection)
     connection.commit()
     return connection
 
