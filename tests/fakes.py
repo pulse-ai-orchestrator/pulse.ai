@@ -128,7 +128,7 @@ class FakeWorkspace:
         self.branches: set[str] = {branch} if repo else set()
         self.worktrees: dict[Path, str] = {}
         self.files: dict[Path, dict[str, str]] = {}
-        self.bases: dict[str, str] = {}
+        self.bases: dict[str, str] = {branch: f"base-{branch}"} if repo else {}
         self.log: dict[str, list[str]] = {}
         self.published: list[str] = []
         self.requests: list[dict[str, str]] = []
@@ -177,15 +177,13 @@ class FakeWorkspace:
         return target, branch
 
     def head(self, cwd: Path) -> str:
-        branch = self.worktrees.get(Path(cwd), "")
-        return self.bases.get(branch, "")
+        return self.bases.get(self._branch_at(cwd), "")
 
     def snapshot(self, cwd: Path) -> dict[str, str]:
         return dict(self.files.get(Path(cwd), {}))
 
     def commit(self, cwd: Path, paths: list[str], message: str) -> None:
-        at_root = self._repo and Path(cwd) == self._root
-        branch = self._branch if at_root else self.worktrees.get(Path(cwd))
+        branch = self._branch_at(cwd)
         if not branch:
             raise WorkspaceError(f"{cwd} is not a worktree")
         self.log.setdefault(branch, []).append(message)
@@ -193,10 +191,16 @@ class FakeWorkspace:
         self.events.append("commit")
 
     def commits_after(self, cwd: Path, base: str) -> list[str]:
-        branch = self.worktrees.get(Path(cwd))
-        if branch is None or self.bases.get(branch) != base:
+        branch = self._branch_at(cwd)
+        if not branch or self.bases.get(branch) != base:
             return []
         return list(self.log.get(branch, []))
+
+    def _branch_at(self, cwd: Path) -> str:
+        """The branch a directory is on: a worktree's own, or the root's current one."""
+        if self._repo and Path(cwd) == self._root:
+            return self._branch
+        return self.worktrees.get(Path(cwd), "")
 
     def publish_branch(self, branch: str) -> None:
         if self.fail_push:

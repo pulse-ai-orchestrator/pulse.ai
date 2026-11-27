@@ -10,8 +10,13 @@ o projeto adota o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Alterado
 
 - *Auto commit* não liga mais o Worktree junto: sem ele, a run commita na
-  branch atual do projeto, sem push nem PR/MR. O PR/MR continua exigindo
-  Worktree e Autocommit.
+  branch atual do projeto e a envia para o `origin` no fim, sem PR/MR. O PR/MR
+  continua exigindo Worktree e Autocommit.
+
+### Corrigido
+
+- O commit de cada entrega grava só os arquivos do step: o que já estava no
+  stage fica fora do commit e continua no stage.
 
 ## [0.1.0] - 2026-11-04
 

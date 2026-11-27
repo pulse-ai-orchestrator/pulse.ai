@@ -298,7 +298,8 @@ SETTINGS_WORKTREE_DISABLED = (
 )
 SETTINGS_ATOMIC_ENABLED = (
     "Cada entrega de implementação ou correção vira um commit na branch da run, "
-    "ou na branch atual do projeto quando o Worktree está desligado."
+    "ou na branch atual do projeto quando o Worktree está desligado. "
+    "No fim da run, a branch vai para o remoto."
 )
 SETTINGS_ATOMIC_DISABLED = "As runs deixam de commitar. PR/MR foi desligado."
 SETTINGS_PR_ENABLED = "No fim da run o Pulse abre o pedido no GitHub ou no GitLab."

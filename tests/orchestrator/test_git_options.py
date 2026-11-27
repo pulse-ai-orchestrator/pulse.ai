@@ -165,9 +165,9 @@ def test_without_atomic_commits_a_commit_the_agent_made_is_not_pushed(tmp_path: 
     assert harness.workspace.requests == []
 
 
-def test_atomic_commits_without_a_worktree_commit_on_the_current_branch(tmp_path: Path):
+def test_atomic_commits_without_a_worktree_commit_and_push_the_current_branch(tmp_path: Path):
     """Autocommit stands alone: at the root it commits on the project's branch and
-    never pushes it, since that branch is not the run's.
+    pushes it at the end, leaving the checkout and its branch in place.
     """
     make_workflow(
         "demo",
@@ -188,13 +188,57 @@ def test_atomic_commits_without_a_worktree_commit_on_the_current_branch(tmp_path
     assert code == 0
     assert run.worktree_path == ""
     assert run.branch == "develop"
+    assert run.branch_base == "base-develop"
     assert harness.workspace.committed == [
         ("develop", ["src/app.py"], "feat: add email validation")
     ]
-    assert harness.workspace.published == []
+    assert harness.workspace.published == ["develop"]
     assert harness.workspace.requests == []
     assert harness.workspace.deleted_branches == []
+    assert "remove" not in harness.workspace.events
     assert "commit: add email validation" in session.sent[0]
+
+
+def test_a_root_run_that_committed_nothing_pushes_nothing(tmp_path: Path):
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar")],
+        requires_approval=False,
+        commit_types={"implement": "feat"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True, branch="develop")
+    session = FakeAgentSession([delivered_turn()])
+
+    code = harness.run(
+        session, workflow_id="demo", user_prompt="Corrigir o login", atomic_commits=True
+    )
+
+    assert code == 0
+    assert harness.workspace.committed == []
+    assert harness.workspace.published == []
+
+
+def test_a_failed_push_from_the_root_fails_the_run_and_keeps_the_commit(tmp_path: Path):
+    make_workflow(
+        "demo",
+        steps=[("implement", "Implementar")],
+        requires_approval=False,
+        commit_types={"implement": "feat"},
+    )
+    harness = EngineHarness(tmp_path)
+    harness.workspace = harness.workspace.__class__(tmp_path, repo=True, branch="develop")
+    harness.workspace.fail_push = True
+    session = FakeAgentSession([committing_turn()])
+    session._before_turn = editing_a_file(harness, session)
+
+    code = harness.run(
+        session, workflow_id="demo", user_prompt="Corrigir o login", atomic_commits=True
+    )
+
+    assert code == 1
+    assert harness.workspace.log["develop"] == ["feat: add email validation"]
+    assert harness.workspace.published == []
 
 
 def test_atomic_commits_outside_a_repository_do_not_try_to_commit(tmp_path: Path):

@@ -32,8 +32,8 @@ direto na run; vazio, ele abre o campo para o usuário descrever a tarefa.
 
 `commit_type` (`feat`, `fix` ou vazio) diz se o Autocommit grava um commit
 quando o step entrega. Vazio não commita. Sem Worktree, o commit vai para a
-branch atual do projeto e não é publicado; PR/MR só existe com Worktree e
-Autocommit ligados.
+branch atual do projeto, que é enviada para o `origin` no fim da run; PR/MR só
+existe com Worktree e Autocommit ligados.
 
 `opens_request` marca o step em que o PR/MR abre. Ligado, o draft nasce quando
 a última unidade desse step termina (no `new-issue`, a última task de

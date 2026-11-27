@@ -44,7 +44,10 @@ def prepare_workspace(
 
     if not repo or not use_worktree:
         branch = workspace.current_branch()
-        run.work_in(worktree_path="", branch=branch)
+        # Where the run started, kept across resumes: what it committed since is
+        # what the end of the run publishes.
+        base = (run.branch_base or workspace.head(workspace.root)) if repo else ""
+        run.work_in(worktree_path="", branch=branch, base=base)
         runs.save(run)
         return workspace.root, branch
 

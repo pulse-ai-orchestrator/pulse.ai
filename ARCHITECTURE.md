@@ -408,10 +408,15 @@ step com `workflow_steps.commit_type` (`feat` ou `fix`; vazio não commita), só
 com os caminhos que mudaram naquele step (arquivos de pasta não rastreada
 contam um a um): dentro do worktree, na branch da run; sem worktree, na raiz do
 projeto e na branch atual dele (fora de um repositório ou com HEAD destacado,
-não commita). No fim da run, com Autocommit e Worktree ligados e se a branch da
-run teve commit, o Pulse faz `git push -u origin`; sem Autocommit nada é
-publicado, mesmo que o agente tenha commitado sozinho, e a branch atual do
-projeto nunca é publicada. Com PR/MR ligado, abre o
+não commita). O commit grava só esses caminhos (`git commit -- <caminhos>`): o
+que o usuário já tinha no stage fica fora e continua no stage. Na raiz, um
+arquivo que o usuário salva no editor enquanto o step roda também conta como
+mudança do step e entra no commit; só o worktree isola as duas coisas. No fim
+da run, com Autocommit ligado e se a run commitou desde que começou
+(`runs.branch_base`), o Pulse faz `git push -u origin` da branch: a da run, com
+worktree, ou a atual do projeto, na raiz. Na raiz, o checkout e a branch ficam
+como estão. Sem Autocommit nada é publicado, mesmo que o agente tenha
+commitado sozinho. Com PR/MR ligado, abre o
 pedido **em draft** no GitHub (`gh pr create --draft`) ou no GitLab
 (`glab mr create --draft`) contra o `origin/HEAD` (sem ele, o pedido não abre e
 a run avisa). O corpo segue o template do repositório na branch default
