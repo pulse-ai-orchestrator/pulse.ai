@@ -33,6 +33,7 @@ class FactoryStep:
     phase: str = ""
     commit_type: str = ""
     opens_request: bool = False
+    skippable: bool = False
 
     def id(self) -> str:
         return self.step_id or self.agent_id
@@ -70,7 +71,9 @@ WORKFLOWS: tuple[FactoryWorkflow, ...] = (
         label="Nova spec",
         description="da ideia ao código revisado",
         steps=(
-            FactoryStep("prd", "PRD", True),
+            # A purely technical task has no product decision to make: the PRD
+            # agent says so and the run goes straight to the Techspec.
+            FactoryStep("prd", "PRD", True, skippable=True),
             FactoryStep("techspec", "Techspec", True),
             FactoryStep("tasks", "Tasks", True),
             FactoryStep(
@@ -296,8 +299,8 @@ def seed(connection: sqlite3.Connection) -> None:
         INSERT OR IGNORE INTO workflow_steps
           (workflow_id, step_id, position, label, agent_id, prompt_template,
            requires_approval, fan_out, repeat_from, repeat_max, commit_type,
-           opens_request)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           opens_request, skippable)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
@@ -313,6 +316,7 @@ def seed(connection: sqlite3.Connection) -> None:
                 int(step.repeat_max),
                 step.commit_type,
                 int(step.opens_request),
+                int(step.skippable),
             )
             for workflow in WORKFLOWS
             for position, step in enumerate(workflow.steps, start=1)
@@ -402,6 +406,27 @@ def backfill_opens_request(connection: sqlite3.Connection) -> None:
          WHERE workflow_id = ? AND step_id = ? AND opens_request = 0
         """,
         rows,
+    )
+
+
+def backfill_skippable(connection: sqlite3.Connection) -> None:
+    """Turn on `skippable` where the column was just added and is still off.
+
+    `seed` does not rewrite existing rows. A later edit stays: this runs only on
+    the migration that adds the column.
+    """
+    connection.executemany(
+        """
+        UPDATE workflow_steps
+           SET skippable = 1
+         WHERE workflow_id = ? AND step_id = ? AND skippable = 0
+        """,
+        [
+            (workflow.id, step.id())
+            for workflow in WORKFLOWS
+            for step in workflow.steps
+            if step.skippable
+        ],
     )
 
 
@@ -514,35 +539,84 @@ def refresh_uncapped_clarify_loops(connection: sqlite3.Connection) -> None:
     """Reset rows that still tell the agent its questions have no round limit.
 
     The approval loop stops at a turn cap; an agent told otherwise asked one
-    question per round, hit the cap, and its retry asked everything again. `seed`
-    never rewrites rows, so a factory row still carrying the old sentence is reset
-    to the factory text, other edits in it included; a row without the sentence
-    belongs to the user and stays. Runs on every open: exits early via `SELECT`.
+    question per round, hit the cap, and its retry asked everything again.
     """
-    steps = connection.execute(
-        "SELECT workflow_id, step_id FROM workflow_steps WHERE instr(prompt_template, ?) > 0",
-        (UNCAPPED_STEP_MARK,),
-    ).fetchall()
-    agents = connection.execute(
-        "SELECT id FROM agent_defs WHERE instr(instructions, ?) > 0",
-        (UNCAPPED_AGENT_MARK,),
-    ).fetchall()
+    _reset_rows_carrying(
+        connection, step_marks=(UNCAPPED_STEP_MARK,), agent_marks=(UNCAPPED_AGENT_MARK,)
+    )
+
+
+# Sentences only the playbooks written before the PRD became skippable carry. The
+# first is where `handoff.md` met the previous-step block, before the contract
+# section went between them: every step that includes it still has it.
+REQUIRED_PRD_STEP_MARKS = (
+    "modified directory.\n\n{{#if previous_summary}}",
+    "Follow the `prd.md` playbook above (auto-sizing by complexity).",
+)
+REQUIRED_PRD_AGENT_MARKS = (
+    "Capture WHAT to build with testable, traceable requirements.\n",
+    "PRD.md` before designing. If",
+    "re-read PRD.md, TECHSPEC.md and the diff from scratch.",
+    "Requires `PRD.md`; skip and say so when absent.",
+)
+
+
+def refresh_for_optional_prd(connection: sqlite3.Connection) -> None:
+    """Reset rows written when every task had to go through a PRD.
+
+    Without it an upgraded database keeps a PRD step that never triages, and
+    steps after it that treat a missing `PRD.md` as a broken spec.
+    """
+    _reset_rows_carrying(
+        connection, step_marks=REQUIRED_PRD_STEP_MARKS, agent_marks=REQUIRED_PRD_AGENT_MARKS
+    )
+
+
+def _reset_rows_carrying(
+    connection: sqlite3.Connection, *, step_marks: tuple[str, ...], agent_marks: tuple[str, ...]
+) -> None:
+    """Reset factory rows that still carry a sentence of an outdated playbook.
+
+    `seed` never rewrites rows, so a factory row still carrying the old sentence
+    is reset to the factory text, other edits in it included; a row without it
+    belongs to the user and stays, and so does a user workflow's step, which has
+    no factory text to go back to. Runs on every open: exits early via `SELECT`.
+    """
+    steps = {
+        (str(row[0]), str(row[1]))
+        for mark in step_marks
+        for row in connection.execute(
+            "SELECT workflow_id, step_id FROM workflow_steps WHERE instr(prompt_template, ?) > 0",
+            (mark,),
+        )
+    }
+    agents = {
+        str(row[0])
+        for mark in agent_marks
+        for row in connection.execute(
+            "SELECT id FROM agent_defs WHERE instr(instructions, ?) > 0", (mark,)
+        )
+    }
     if not steps and not agents:
         return
 
     factory_steps = {(item.id, step.id()): step for item in WORKFLOWS for step in item.steps}
-    for row in steps:
-        step = factory_steps.get((row[0], row[1]))
+    for key in sorted(steps):
+        step = factory_steps.get(key)
         if step is None:
             continue
         connection.execute(
             "UPDATE workflow_steps SET prompt_template = ? WHERE workflow_id = ? AND step_id = ?",
-            (load_phase(step.agent_id, step.phase or "PHASE"), row[0], row[1]),
+            (load_phase(step.agent_id, step.phase or "PHASE"), *key),
         )
     instructions = {agent.id: agent.instructions for agent in load_agents()}
     connection.executemany(
         "UPDATE agent_defs SET instructions = ? WHERE id = ?",
-        [(instructions[row[0]], row[0]) for row in agents if row[0] in instructions],
+        [
+            (instructions[agent_id], agent_id)
+            for agent_id in sorted(agents)
+            if agent_id in instructions
+        ],
     )
 
 

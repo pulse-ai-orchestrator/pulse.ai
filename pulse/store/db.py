@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS workflow_steps (
   repeat_max INTEGER NOT NULL DEFAULT 0,
   commit_type TEXT NOT NULL DEFAULT '',
   opens_request INTEGER NOT NULL DEFAULT 0,
+  skippable INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (workflow_id, step_id)
 );
 
@@ -271,6 +272,11 @@ def _apply_opens_request(connection: sqlite3.Connection) -> set[tuple[str, str]]
     return _add_columns(connection, columns)
 
 
+def _apply_skippable(connection: sqlite3.Connection) -> set[tuple[str, str]]:
+    columns = (("workflow_steps", "skippable", "INTEGER NOT NULL DEFAULT 0"),)
+    return _add_columns(connection, columns)
+
+
 def _key_artifacts_by_step(connection: sqlite3.Connection) -> set[tuple[str, str]]:
     connection.execute(
         """
@@ -350,6 +356,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(version=6, apply=_key_artifacts_by_step),
     Migration(version=7, apply=_apply_opens_request),
     Migration(version=8, apply=_refresh_stock_pull_request_template),
+    Migration(version=9, apply=_apply_skippable),
 )
 
 
@@ -427,10 +434,13 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
             factory.backfill_pull_request_templates(connection)
         if ("workflow_steps", "opens_request") in added:
             factory.backfill_opens_request(connection)
+        if ("workflow_steps", "skippable") in added:
+            factory.backfill_skippable(connection)
         factory.drop_approval_from_unattended_steps(connection)
         factory.inherit_policy_on_default_agent(connection)
         factory.drop_validation_from_implement(connection)
         factory.refresh_uncapped_clarify_loops(connection)
+        factory.refresh_for_optional_prd(connection)
     connection.commit()
     return connection
 

@@ -7,7 +7,7 @@ Original task: {{user_prompt}}
 
 ## Review phase — review what was implemented (do NOT fix)
 
-Read the feature's `PRD.md`, its `TECHSPEC.md` if it exists, and `tasks.md`.
+Read the feature's contract, its `TECHSPEC.md` if it exists, and `tasks.md`.
 You did not write this code and you have no notes from whoever did: re-derive the
 contract from the artefacts and the diff, not from the summary above.
 

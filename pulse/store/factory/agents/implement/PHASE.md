@@ -7,7 +7,7 @@ Original task: {{user_prompt}}
 
 ## Execute phase — implement
 
-Read the feature's `PRD.md`, its `TECHSPEC.md` if it exists, and `tasks.md`.
+Read the feature's contract, its `TECHSPEC.md` if it exists, and `tasks.md`.
 
 {{#if item_id}}### Your task: {{item_id}} — {{item_label}} ({{item_index}} de {{item_total}})
 

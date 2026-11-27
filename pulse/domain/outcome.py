@@ -24,6 +24,7 @@ _COMMIT_TYPE = re.compile(r"^(feat|fix|chore|docs|refactor|test|perf|ci|build|st
 class OutcomeStatus(StrEnum):
     DONE = "done"
     BLOCKED = "blocked"
+    SKIPPED = "skipped"
     MISSING = "missing"
 
 
@@ -38,6 +39,9 @@ _DONE_WORDS = frozenset({"done", "ok", "concluido", "concluído", "sucesso", "su
 _BLOCKED_WORDS = frozenset(
     {"blocked", "bloqueado", "bloqueio", "travado", "stuck", "impedido", "failed", "falhou"}
 )
+# "This step does not apply to the task." Honoured only where the step definition
+# allows it (`StepDef.skippable`); see [pulse.orchestrator.engine._judge_turn].
+_SKIPPED_WORDS = frozenset({"skipped", "skip", "pulado", "pular", "dispensado", "n/a"})
 _NEEDS_USER = frozenset(
     {
         "user",
@@ -79,6 +83,11 @@ class Outcome:
     @property
     def delivered(self) -> bool:
         return self.status == OutcomeStatus.DONE
+
+    @property
+    def skips(self) -> bool:
+        """The agent declares that the step does not apply to this task."""
+        return self.status == OutcomeStatus.SKIPPED
 
     @property
     def repeats(self) -> bool:
@@ -156,6 +165,8 @@ def parse_outcome(text: str) -> Outcome:
             next=_loop_signal(nxt),
             commit_subject=accept_commit_subject(fields.get("commit", "")),
         )
+    if raw_status in _SKIPPED_WORDS:
+        return Outcome(status=OutcomeStatus.SKIPPED, reason=reason)
     if raw_status in _BLOCKED_WORDS:
         return Outcome(status=OutcomeStatus.BLOCKED, reason=reason, needs=needs)
     if not raw_status:

@@ -35,7 +35,7 @@ written, above, before deciding:
 
 ### Scope
 
-1. Read `PRD.md`, `TECHSPEC.md` if it exists, and `tasks.md`.
+1. Read the feature's contract, `TECHSPEC.md` if it exists, and `tasks.md`.
 2. `git diff` against the branch this run started from. Read-only — no commit,
    no stage, no push, no stash, no suggesting commit messages.
 3. If there is no usable base (shallow clone, detached state, no commits yet),

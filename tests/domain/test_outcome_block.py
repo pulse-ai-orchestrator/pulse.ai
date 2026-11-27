@@ -182,3 +182,34 @@ def test_an_unknown_status_keeps_the_reason_the_agent_gave():
 
 def test_backticks_around_a_value_are_dropped():
     assert parse_outcome(_block("status: blocked\nreason: `no access`")).reason == "no access"
+
+
+@pytest.mark.parametrize("word", ["skipped", "skip", "pulado", "pular", "dispensado", "n/a"])
+def test_skipped_says_the_step_does_not_apply_and_keeps_the_reason(word: str):
+    """A step that does not apply is neither a delivery nor a block."""
+    outcome = parse_outcome(_block(f"status: {word}\nreason: tarefa puramente técnica"))
+
+    assert outcome.status == OutcomeStatus.SKIPPED
+    assert outcome.skips
+    assert outcome.reason == "tarefa puramente técnica"
+    assert not outcome.delivered
+
+
+def test_a_skip_neither_steers_the_loop_nor_asks_for_a_person():
+    """`next` and `needs` belong to a delivery and a block; a skip carries only its reason."""
+    outcome = parse_outcome(_block("status: skipped\nreason: x\nnext: repeat\nneeds: user"))
+
+    assert outcome.next is None
+    assert not outcome.repeats
+    assert not outcome.needs_user
+
+
+def test_only_the_skip_status_skips():
+    """`done`, `blocked`, an unknown word and a missing block never read as a skip."""
+    texts = [
+        _block("status: done"),
+        _block("status: blocked\nreason: x"),
+        _block("status: whatever"),
+        "sem bloco",
+    ]
+    assert [parse_outcome(text).skips for text in texts] == [False, False, False, False]

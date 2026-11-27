@@ -157,7 +157,7 @@ run_engine(workflow_id, …)                daemon/runs.py — o único que conh
             ├─ render(step.prompt_template) com os valores da run
             ├─ requires_approval ? run_isolated_phase : run_isolated_prompt
             ├─ classify_outcome(…)        approve | adjust | skip | cancel
-            ├─ parse_outcome(…)           done | blocked  (step sem aprovação)
+            ├─ parse_outcome(…)           done | blocked | skipped
             └─ record.deliver()/block()…  desfecho no agregado → runs.save(run)
 ```
 
@@ -211,6 +211,14 @@ sessão, para ele destravar o que estiver ao alcance dele; o que sobra vira
 `blocked` e **para a run** (`RUN_BLOCKED`, 131), que não é falha — nada quebrou,
 a entrega é que não aconteceu. `requires_outcome = 0` desliga o protocolo por
 step e devolve o comportamento antigo.
+
+`status: skipped` (com `reason`) diz que o step **não se aplica** à tarefa. Vale
+só onde a definição deixa: com `workflow_steps.skippable = 1` o step vira
+`skipped` sem perguntar a ninguém — com ou sem aprovação —, o resumo fica e o
+step seguinte recebe `previous_status = skipped`. Sem a coluna, a mesma
+declaração vira `blocked` e a pessoa decide no menu. O motor só anexa o formato
+ao prompt de step pulável. Na semente, só o PRD do `new-issue` é: pedido
+puramente técnico vai direto para a Techspec.
 
 O parser é estrito: o corpo do bloco não contém outra cerca e a cerca de
 fechamento termina a linha. Assim uma cerca `pulse:outcome` aberta e citada de um

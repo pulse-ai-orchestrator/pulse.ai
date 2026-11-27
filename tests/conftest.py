@@ -38,6 +38,7 @@ def make_workflow(
     repeat: tuple[str, str, int] | None = None,
     commit_types: dict[str, str] | None = None,
     opens_request: tuple[str, ...] | set[str] = (),
+    skippable: tuple[str, ...] | set[str] = (),
     pull_request_template: str = "",
 ) -> WorkflowDef:
     """Persist a test workflow in the database and return its definition.
@@ -68,6 +69,7 @@ def make_workflow(
                 else None,
                 commit_type=(commit_types or {}).get(step_id, ""),
                 opens_request=step_id in opens_request,
+                skippable=step_id in skippable,
             )
             for index, (step_id, step_label) in enumerate(entries, start=1)
         ),

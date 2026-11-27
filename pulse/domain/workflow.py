@@ -109,6 +109,9 @@ class StepDef:
     repeat: RepeatRule | None = None
     commit_type: str = ""
     opens_request: bool = False
+    # The agent may declare that the step does not apply (`status: skipped`) and
+    # the run moves on without asking anyone. Off, such a declaration is refused.
+    skippable: bool = False
 
     @property
     def declares_outcome(self) -> bool:

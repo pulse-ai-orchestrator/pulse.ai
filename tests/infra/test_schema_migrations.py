@@ -340,6 +340,37 @@ def test_a_database_at_version_6_opens_the_request_on_the_factory_step(tmp_path:
     assert implement.opens_request is False
 
 
+def test_a_database_at_version_8_lets_the_factory_prd_step_skip_itself(tmp_path: Path) -> None:
+    """Without the backfill an upgraded database would keep the PRD mandatory.
+    A later edit is not rewritten on the next open.
+    """
+    from pulse.store.workflow_defs import get_workflow
+
+    path = tmp_path / "v8.db"
+    connect(path).close()
+    with _raw(path) as connection:
+        connection.execute("ALTER TABLE workflow_steps DROP COLUMN skippable")
+        connection.execute("PRAGMA user_version = 8")
+
+    connect(path).close()
+
+    upgraded = get_workflow("new-issue", db_path=path)
+    assert upgraded is not None
+    assert {step.step_id for step in upgraded.steps if step.skippable} == {"prd"}
+    with _raw(path) as connection:
+        connection.execute(
+            "UPDATE workflow_steps SET skippable = 0 "
+            "WHERE workflow_id = 'new-issue' AND step_id = 'prd'"
+        )
+        connection.commit()
+
+    connect(path).close()
+
+    again = get_workflow("new-issue", db_path=path)
+    assert again is not None
+    assert not any(step.skippable for step in again.steps)
+
+
 def test_a_run_stored_before_runs_kept_git_options_reads_none(tmp_path):
     """NULL options mean "follow the project", the behavior that run started with."""
     from pulse.store.runs import load_run

@@ -7,7 +7,7 @@ Original task: {{user_prompt}}
 
 ## Tasks phase — break into atomic tasks (do NOT implement)
 
-Read the feature's `PRD.md`, and its `TECHSPEC.md` if it exists.
+Read the feature's contract and its `TECHSPEC.md` if it exists.
 Write `tasks.md` next to them, one heading per task (`### T1: …`, `### T2: …`),
 in execution order.
 Do not end this phase without that file. A clarifying question does not approve

@@ -7,8 +7,16 @@ Original task: {{user_prompt}}
 
 ## Techspec phase — define HOW to build it (do NOT implement)
 
-Read the feature's `PRD.md` (and `context.md` if it exists).
+Read the feature's `context.md` and its `PRD.md`.
 Write `TECHSPEC.md` next to them, per the `techspec.md` playbook above.
+
+**No PRD** (`context.md` says `PRD dispensado`): this Techspec is also the
+contract. Before the architecture, write a `## Requirements` section with what
+the task must deliver — requirement IDs, EARS acceptance criteria (one testable
+behavior each, concrete values), edge cases — and a `## Requirement Traceability`
+table, the same shape the PRD template uses. Every gray area becomes an Ambiguity
+Ledger row here. If you find a decision that does belong to the product team, ask
+it in product language instead of deciding it.
 Read rules/conventions from disk only when they bear on an architecture decision.
 
 The **implicit-requirement sweep** belongs to this phase (PRD only covers
