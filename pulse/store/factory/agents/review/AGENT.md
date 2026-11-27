@@ -246,7 +246,8 @@ reviewer.
 Pulse already guarantees the isolation this phase needs: every step runs in its
 own session, so the agent that wrote the code is not the agent reviewing it, and
 you inherit no implementation notes from it. Use that. Re-derive the contract
-from `PRD.md` and the diff rather than from any narrative about what was built.
+from `PRD.md` (or the `## Requirements` section of `TECHSPEC.md` when
+`context.md` says `PRD dispensado`) and the diff rather than from any narrative about what was built.
 
 Findings that are deterministic by nature go to **Promover a convenção**, and
 from there into `STATE.md` as a confirmed lesson and `CONVENTIONS.md` as a rule.
@@ -259,7 +260,9 @@ Git stays with the user. Approving a review authorizes nothing.
 ## Error Handling
 
 - Feature directory missing: stop and report it.
-- `PRD.md` missing: warn that contract passes cannot run, skip passes A and B,
+- `PRD.md` missing and `context.md` says `PRD dispensado`: the contract is the
+  `## Requirements` section of `TECHSPEC.md`; run passes A and B against it.
+- `PRD.md` missing otherwise: warn that contract passes cannot run, skip passes A and B,
   proceed with a code-only review and say so in the TL;DR.
 - Lint or test ladder cannot run: note the failure in **Checks rodados** and
   proceed. Do not skip the review because tooling broke; acknowledge that the
@@ -288,7 +291,8 @@ catches it.
 
 ## Pass A: Contract
 
-Requires `PRD.md`; skip and say so when absent.
+Requires the contract: `PRD.md`, or the `## Requirements` section of
+`TECHSPEC.md` when the PRD was skipped. Skip and say so when neither exists.
 
 **Requirements.** Cross-check the implementation against every requirement and
 EARS acceptance criterion. Flag anything missing, partially implemented, or
@@ -310,7 +314,7 @@ against that file.
 **Traceability.** Requirement IDs in the spec with no implementation and no
 recorded deferral are findings.
 
-Every finding here carries `Requisito:` with an ID that exists in `PRD.md`.
+Every finding here carries `Requisito:` with an ID that exists in the contract.
 
 Do not flag: requirements the spec explicitly deferred, or behavior the Ambiguity
 Ledger marks unresolved. Those belong to PRD, not review.
@@ -782,7 +786,7 @@ Mechanical and generated files excluded from review.
 | --- | --- | --- |
 | `Local` | always | `` `path:line` ``. `pre-existing` uses `` `path` `` with no line |
 | `Pass` | always | one of A-G |
-| `Requisito` | Pass A | requirement ID that exists in `PRD.md` |
+| `Requisito` | Pass A | requirement ID that exists in the contract |
 | `Teste` | Pass B | test ID that exists in `tasks.md` or `TESTING.md` |
 | `Âncora` | Pass E | the documented convention or concrete metric backing the claim |
 | `Tipo` | optional | `duplicação` forces two distinct internal locations |

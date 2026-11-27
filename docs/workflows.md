@@ -17,7 +17,7 @@ workflow_defs     id, label, description, is_default, default_prompt,
                   pull_request_template
 workflow_steps    workflow_id, step_id, position, label,
                   agent_id, prompt_template, requires_approval, fan_out,
-                  commit_type, opens_request
+                  commit_type, opens_request, skippable
 agent_defs        id, label, runtime, model, permission_policy, instructions
 ```
 
@@ -39,6 +39,10 @@ a última unidade desse step termina (no `new-issue`, a última task de
 `implement`). Desligado em todo step, o draft abre só no fim da run. O pedido
 sai sempre em draft.
 
+`skippable` deixa o agente dispensar o step sozinho quando ele não se aplica à
+tarefa (§2.2). Desligado, o agente que tenta dispensar trava o step e a pessoa
+decide.
+
 `pull_request_template` é o corpo do PR/MR quando o repositório não tem o seu.
 A fábrica semeia [`pulse/store/factory/pull_request.md`](../pulse/store/factory/pull_request.md),
 o mesmo texto de [`.github/pull_request_template.md`](../.github/pull_request_template.md).
@@ -57,7 +61,7 @@ upgrade, e linha de fábrica apagada volta na abertura seguinte.
 
 | Loop | Steps |
 | --- | --- |
-| `new-issue` — Nova spec | prd → techspec → tasks → implement (uma vez por task) → verify ⇄ verify-fix (valida contra PRD e Techspec e corrige as lacunas; laço, até 3 rodadas) → review ⇄ review-fix (laço, até 3 rodadas) |
+| `new-issue` — Nova spec | prd (pulável: pedido puramente técnico vai direto para a techspec) → techspec → tasks → implement (uma vez por task) → verify ⇄ verify-fix (valida contra PRD e Techspec e corrige as lacunas; laço, até 3 rodadas) → review ⇄ review-fix (laço, até 3 rodadas) |
 | `quick-fix` — Correção rápida | quick-plan → quick-implement |
 | `review` — Review | review ⇄ review-fix (laço, até 3 rodadas) sobre a branch atual vs `main` + não commitado; fase `STANDALONE.md`, rodadas em `.pulse/reviews/NNN-slug/` |
 | `setup-project` — Setup do projeto | setup-interview → setup-artifacts |
@@ -209,6 +213,28 @@ needs: user
 `needs: user` só quando depender de outra pessoa, de um acesso ou de uma
 permissão. Ele é o que decide se o motor gasta ou não a tentativa de
 auto-resolução.
+
+Num step com `skippable = 1` — e só nele — há um terceiro desfecho, que passa
+**por cima do portão**, com ou sem aprovação:
+
+````text
+```pulse:outcome
+status: skipped
+reason: tarefa puramente técnica, sem decisão de produto
+```
+````
+
+O step vira `skipped` sem perguntar nada, o resumo fica, e o step seguinte
+recebe `previous_status = skipped` e o resumo. O motor anexa esse formato só ao
+prompt de step pulável; quem decide **quando** pular é o playbook. Na semente é
+o PRD do `new-issue`: ele faz uma triagem antes de qualquer pergunta e, sem
+decisão de produto no pedido, grava `PRD dispensado` no `context.md` e passa a
+vez. A Techspec então escreve o contrato (`## Requirements`, critérios EARS,
+rastreabilidade), e tasks, implement, verify e review leem o contrato dali — o
+bloco "The feature's contract" de
+[`shared/handoff.md`](../pulse/store/factory/shared/handoff.md). Na dúvida, o
+PRD é escrito. Step **sem** a coluna que declara `skipped` vira `blocked`: a
+pessoa vê o motivo e escolhe *Pular este step* se concordar.
 
 **Os três degraus**, nesta ordem
 ([`pulse/domain/outcome.py`](../pulse/domain/outcome.py)):

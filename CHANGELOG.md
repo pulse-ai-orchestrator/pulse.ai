@@ -7,6 +7,16 @@ o projeto adota o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- Nova spec pula o PRD sozinha quando o pedido é puramente técnico (refactor,
+  upgrade de dependência, CI, testes, performance sem mudança visível): o agente
+  do PRD faz a triagem antes de perguntar qualquer coisa, declara
+  `status: skipped` e a run segue direto para a Techspec, que passa a escrever
+  os requisitos e critérios de aceite. Na dúvida, o PRD é escrito.
+- Coluna `workflow_steps.skippable`: o agente só dispensa um step que a
+  definição deixa; fora dela, a declaração trava o step e a pessoa decide.
+
 ## [0.1.0] - 2026-11-04
 
 Primeira versão pública do Pulse: um orquestrador de agentes de IA via ACP,

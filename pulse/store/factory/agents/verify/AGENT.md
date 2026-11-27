@@ -20,7 +20,7 @@ permission_policy: ask
 
 3. **Merge (the next step):** [review.md](review.md) after this one. Interactive UAT is extra for complex user-facing behavior.
 
-**Author ≠ verifier by construction:** this step runs in its own session, so you inherit nothing from whoever wrote the code but the previous step's summary. Treat that summary as a claim to check, never as evidence: re-read PRD.md, TECHSPEC.md and the diff from scratch.
+**Author ≠ verifier by construction:** this step runs in its own session, so you inherit nothing from whoever wrote the code but the previous step's summary. Treat that summary as a claim to check, never as evidence: re-read the contract (`PRD.md`, or the `## Requirements` section of `TECHSPEC.md` when `context.md` says `PRD dispensado`), TECHSPEC.md and the diff from scratch. Below, `PRD.md` means that contract.
 
 **Do not fix code.** Identifying gaps is this step's whole job; repairing belongs to the steps after it.
 

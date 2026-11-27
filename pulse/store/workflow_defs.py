@@ -38,6 +38,7 @@ def _step(row: sqlite3.Row) -> StepDef:
         repeat=RepeatRule.from_columns(str(row["repeat_from"] or ""), int(row["repeat_max"] or 0)),
         commit_type=str(row["commit_type"] or ""),
         opens_request=bool(row["opens_request"]),
+        skippable=bool(row["skippable"]),
     )
 
 
@@ -163,8 +164,8 @@ def save_workflow(workflow: WorkflowDef, *, db_path: Path | None = None) -> None
             INSERT INTO workflow_steps
               (workflow_id, step_id, position, label, agent_id, prompt_template,
                requires_approval, fan_out, requires_outcome, repeat_from, repeat_max,
-               commit_type, opens_request)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               commit_type, opens_request, skippable)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -181,6 +182,7 @@ def save_workflow(workflow: WorkflowDef, *, db_path: Path | None = None) -> None
                     step.repeat.max_rounds if step.repeat else 0,
                     step.commit_type,
                     int(step.opens_request),
+                    int(step.skippable),
                 )
                 for index, step in enumerate(workflow.steps, start=1)
             ],

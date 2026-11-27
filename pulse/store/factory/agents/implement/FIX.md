@@ -7,8 +7,8 @@ Original task: {{user_prompt}}
 
 ## Verify fix phase — repair the gaps verify found (do NOT verify)
 
-The verify step that just ran compared the implementation with `PRD.md` and
-`TECHSPEC.md` and wrote `.pulse/specs/features/<slug>/validation.md`. The person
+The verify step that just ran compared the implementation with the feature's
+contract and `TECHSPEC.md` and wrote `.pulse/specs/features/<slug>/validation.md`. The person
 approved its diagnosis, so the gaps it lists are now yours to repair.
 
 ### Scope

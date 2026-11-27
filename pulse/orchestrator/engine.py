@@ -41,6 +41,7 @@ from pulse.orchestrator.agent_text import (
     earlier_attempt_block,
     guidance_block,
     outcome_protocol,
+    skip_protocol,
 )
 from pulse.orchestrator.delivery import (
     commit_delivery,
@@ -424,6 +425,8 @@ def _step_prompt(
     prompt_text += guidance_block(guidance)
     if step.declares_outcome:
         prompt_text += outcome_protocol(ask_commit=bool(wiring.atomic_commits and step.commit_type))
+    if step.skippable:
+        prompt_text += skip_protocol()
     return prompt_text
 
 
@@ -489,6 +492,8 @@ def _judge_turn(
     outcome = parse_outcome(turn.summary)
     if may_close and not turn.approved and outcome.closes:
         return _settle(wiring, run, record, LoopSignal.CLOSE)
+    if outcome.skips and not turn.approved:
+        return _skip_by_agent(wiring, run, step, record, outcome)
 
     unfinished = _unfinished_reason(step, turn)
     if unfinished is not None:
@@ -532,6 +537,23 @@ def _judge_outcome(
     return _settle(wiring, run, record, LoopSignal.REPEAT if repeats else None)
 
 
+def _skip_by_agent(
+    wiring: Wiring, run: RunRecord, step: StepDef, record: StepRecord, declared: Outcome
+) -> tuple[LoopSignal | None, str]:
+    """The agent says the step does not apply; only a `skippable` step takes its word.
+
+    Anywhere else the step is blocked, so the person sees the claim and decides.
+    """
+    if not step.skippable:
+        record.block()
+        wiring.runs.save(run)
+        return None, wording.SKIP_NOT_ALLOWED
+    record.skip()
+    wiring.runs.save(run)
+    notify(wiring, wording.step_skipped_by_agent(record.label or step.step_id, declared.reason))
+    return None, ""
+
+
 def _settle(
     wiring: Wiring, run: RunRecord, record: StepRecord, signal: LoopSignal | None
 ) -> tuple[LoopSignal | None, str]:
@@ -568,7 +590,7 @@ def _unblock_continuation(step: StepDef) -> PromptContinuation:
         if spent:
             return ""
         declared = parse_outcome(TurnResult.parse(result).summary)
-        if declared.delivered:
+        if declared.delivered or declared.skips:
             return ""
         spent = True
         if declared.status == OutcomeStatus.MISSING:

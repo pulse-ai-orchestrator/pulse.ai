@@ -406,7 +406,9 @@ Há uma variante com quatro opções,
 [`shared/approval-skip.md`](../pulse/store/factory/shared/approval-skip.md), que
 acrescenta `C) Pular` antes do cancelar. Hoje só o `review` a usa: a fase existe
 para a pessoa decidir o que vira correção, e "nada" é uma das respostas. As
-fases de spec continuam com três — pular o PRD é outra conversa.
+fases de spec continuam com três. Pular o PRD não passa pela pessoa: o step é
+`skippable` e o próprio agente dispensa um pedido puramente técnico com
+`status: skipped` (ver [workflows.md §2.2](workflows.md#22-desfecho-como-um-step-fecha-como-concluído)).
 
 [`classify_outcome`](../pulse/replies/approval.py) lê só as linhas que começam
 com `→` (as escolhas do usuário). Texto livre é tratado como orientação, não como
@@ -466,6 +468,7 @@ Bloqueio é o último recurso, não o jeito de pedir informação.
 | --- | --- | --- |
 | `approve` | `done` | segue |
 | `skip` | `skipped` | segue — não é falha |
+| `status: skipped` em step `skippable` | `skipped` | segue sem perguntar — o agente dispensou o step |
 | `adjust` / `continue` | — | volta ao agente com as respostas |
 | `cancel` / não aprovado / `stopReason` ruim | — | cai no menu de retry |
 | `status: blocked` (ou sem bloco) | `blocked` | cai no menu de bloqueio |
@@ -687,6 +690,7 @@ Reabrir pelo histórico usa as mesmas tabelas: `run_steps` dá a sidebar,
 
 | Quero… | Mexo em… |
 | --- | --- |
+| Deixar o agente dispensar um step que não se aplica | `skippable = 1` no step + a regra de quando pular no `PHASE.md` dele |
 | Fazer um trecho se repetir | `repeat_from`/`repeat_max` no step que fecha o trecho + `next: repeat` no `PHASE.md` dele |
 | Mudar o playbook de um agente | `factory/agents/<id>/AGENT.md` — e apagar a linha de `agent_defs` para re-semear |
 | Mudar o prompt de uma fase | `factory/agents/<id>/PHASE.md` — idem, `workflow_steps` |

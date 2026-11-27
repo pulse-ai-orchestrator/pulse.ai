@@ -80,6 +80,23 @@ credencial ou de uma permissão que você não tem. Deixe o campo de fora quando
 for algo que você ainda pode tentar resolver.
 """
 
+_SKIP_PROTOCOL = """
+
+## Quando este step não se aplica
+
+Este step pode ser dispensado sem consultar ninguém. Se ele não se aplica a esta
+tarefa, não faça perguntas nem peça aprovação: diga em uma linha por quê e
+termine com este bloco, e nada depois dele:
+
+```pulse:outcome
+status: skipped
+reason: por que o step não se aplica, em uma linha
+```
+
+O Pulse registra o step como pulado e segue para o próximo, que recebe o seu
+resumo. Dispense só quando tiver certeza; na dúvida, faça o step.
+"""
+
 _UNBLOCK = """\
 ## Bloqueio declarado no step `{step_id}`
 
@@ -135,6 +152,11 @@ def outcome_protocol(*, ask_commit: bool = False) -> str:
     if not ask_commit:
         return _OUTCOME_PROTOCOL
     return _OUTCOME_PROTOCOL + _COMMIT_LINE
+
+
+def skip_protocol() -> str:
+    """How a step the definition marks `skippable` declares that it does not apply."""
+    return _SKIP_PROTOCOL
 
 
 def build_unblock_prompt(*, step_id: str, reason: str) -> str:

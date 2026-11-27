@@ -18,7 +18,7 @@ permission_policy: deny_writes
 
 ### 1. Load Context
 
-Read `.pulse/specs/features/[feature]/PRD.md` before designing. If `.pulse/specs/features/[feature]/context.md` exists, load it too — it contains implementation decisions that constrain the design (layout choices, behavior preferences, interaction patterns). Decisions marked as "Agent's Discretion" are yours to decide.
+Read `.pulse/specs/features/[feature]/PRD.md` before designing — or, when `context.md` says `PRD dispensado`, write the `## Requirements` section first (see the phase prompt). If `.pulse/specs/features/[feature]/context.md` exists, load it too — it contains implementation decisions that constrain the design (layout choices, behavior preferences, interaction patterns). Decisions marked as "Agent's Discretion" are yours to decide.
 
 Read STATE.md active AD-NNN entries and **confirmed** lessons. Conform or supersede (new AD-NNN). Silently ignoring an active decision is not allowed.
 
@@ -93,7 +93,7 @@ If the feature involves data, define models before implementation.
 ````markdown
 # [Feature] Techspec
 
-**Spec**: `.pulse/specs/[feature]/PRD.md`
+**Spec**: `.pulse/specs/[feature]/PRD.md` (or `## Requirements` below, when the PRD was skipped)
 **Status**: Draft | Approved
 
 ---

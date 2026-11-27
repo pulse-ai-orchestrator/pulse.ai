@@ -24,6 +24,12 @@ def step_skipped_by_user(label: str) -> str:
     return f"{label} pulado pelo usuário"
 
 
+def step_skipped_by_agent(label: str, reason: str) -> str:
+    if not reason:
+        return f"{label} dispensado pelo agente"
+    return f"{label} dispensado pelo agente: {reason}"
+
+
 def run_blocked_at(label: str, reason: str) -> str:
     return f"Run bloqueada em {label}: {reason}"
 
@@ -85,6 +91,10 @@ OUTCOME_NOT_DECLARED = (
     "não dá para afirmar que ele entregou o que o step pede"
 )
 BLOCKED_WITHOUT_REASON = "o agente declarou bloqueio sem dizer o motivo"
+SKIP_NOT_ALLOWED = (
+    "o agente declarou que este step não se aplica, mas a definição dele não permite "
+    f"pular sozinho — escolha «{SKIP_STEP}» para concordar"
+)
 
 
 def commit_failed(error: str) -> str:

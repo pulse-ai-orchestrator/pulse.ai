@@ -10,7 +10,11 @@ permission_policy: deny_writes
 
 # PRD
 
-**Goal**: Capture WHAT to build with testable, traceable requirements.
+**Goal**: Capture WHAT to build with testable, traceable requirements — when the task has product decisions to capture.
+
+**Triage comes first.** A purely technical task has no product decision in it:
+the phase prompt says how to recognize one and skip this phase without asking.
+Everything below applies only when the task does need a PRD.
 
 Read [invariants.md](invariants.md) first. If the feature has ambiguous gray areas, trigger [discuss.md](discuss.md) inside this phase. Write every gray area to the [Ambiguity Ledger](ambiguity.md).
 
