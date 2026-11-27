@@ -74,9 +74,12 @@ em "Nova sessão": aquele menu é de pipeline. Ele segue no banco e na API.
 
 Os playbooks são `.md` em `factory/agents/<id>/AGENT.md` (vira
 `agent_defs.instructions`) e `PHASE.md` (vira `workflow_steps.prompt_template`).
-Os blocos repetidos — isolamento, clarify, aprovação, idioma de saída — ficam em
-`factory/shared/` e são expandidos **na semeadura**, via
-`<!-- include: nome -->`, para a linha do banco ser autossuficiente.
+Os blocos repetidos — isolamento, clarify, aprovação, idioma de saída, as regras
+do laço review ⇄ review-fix — ficam em `factory/shared/` e são expandidos **na
+semeadura**, via `<!-- include: nome -->`, para a linha do banco ser
+autossuficiente. A expansão é de um nível só: um arquivo de `shared/` não inclui
+outro. `test_no_phase_copies_a_block_from_another_phase` falha quando duas fases
+repetem 15 linhas seguidas.
 
 Ficam em arquivo, e não em string Python, porque são ~8 mil linhas que alguém
 precisa revisar em diff. Isso **não** reintroduz catálogo em código: o motor lê
